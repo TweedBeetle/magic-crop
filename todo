@@ -1,0 +1,15 @@
+caching:
+on initial load, reduce dimensions by half and cache some fixed number of checkpoints evenly.
+checkpoints need to contain a record of seams / pixels removed and a copy of dir and minimumEdgyness
+On new crop, warp to next largest checkpoint and remove from there.
+Analyse storage requirements to find good number of checkpoints.
+checkpoints saved in persistent storage viable?
+
+protect humans:
+https://www.tensorflow.org/lite/models/segmentation/overview
+
+C for bottleneck speedup?
+https://stackoverflow.com/questions/55333539/utilize-gpu-in-dart-flutter-other-than-graphics
+
+threading for speedup?
+https://medium.com/flutterdevs/threading-in-flutter-e5b84c7d8d31
