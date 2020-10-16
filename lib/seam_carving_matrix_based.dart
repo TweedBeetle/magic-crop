@@ -8,6 +8,7 @@ import 'package:binary/binary.dart';
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_app_new/seam_carving.dart';
 import 'package:flutter_app_new/utils.dart';
 import 'package:flutter_app_new/matrix.dart';
 import 'package:gallery_saver/gallery_saver.dart';
@@ -269,13 +270,6 @@ List<List<List<int>>> matrixCopy3D(List<List<List<int>>> matrix) =>
 //             growable: true),
 //         growable: true);
 
-List<int> pixelDataToARGB(int pixelData) {
-  int alpha = pixelData >> 24 & 255;
-  int red = pixelData >> 16 & 255;
-  int green = pixelData >> 8 & 255;
-  int blue = pixelData >> 0 & 255;
-  return [alpha, red, green, blue];
-}
 
 List<List<int>> getMinEnergyVerticalSeam(
     List<List<int>> dirs, List<List<int>> minimumEdgyness,

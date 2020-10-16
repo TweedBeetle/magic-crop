@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'dart:ui';
 import "dart:async";
 import "dart:isolate";
+
+// import 'package:flutter/cupertino.dart';
 import "package:isolate/isolate.dart";
 import 'package:binary/binary.dart';
 import 'package:collection/collection.dart';
@@ -14,6 +16,9 @@ import 'package:flutter_app_new/matrix.dart';
 import 'package:flutter_app_new/utils.dart';
 import 'package:gallery_saver/gallery_saver.dart';
 import 'package:image/image.dart' as imageLib;
+import 'package:path_provider/path_provider.dart';
+import 'package:quiver/iterables.dart' show cycle, count, enumerate;
+import 'package:tflite/tflite.dart';
 
 extension SeamCarving on imageLib.Image {
   imageLib.Image carveSeam(
@@ -51,178 +56,10 @@ extension SeamCarving on imageLib.Image {
     new File(path).writeAsBytesSync(imageLib.encodePng(this));
     GallerySaver.saveImage(path);
   }
-}
 
-class ImageCache {
-  Map<Size2D, imageLib.Image> cache;
-  int minDelta;
-  int maxValues;
-
-  ImageCache({
-    imageLib.Image image,
-    List<imageLib.Image> images,
-    int minDelta,
-    int maxValues,
-  }) {
-    this.cache = Map();
-
-    if (image != null) {
-      this._add(image);
-    }
-
-    if (images != null) {
-      this._addAll(images);
-    }
-
-    this.minDelta = (minDelta == null) ? 50 : minDelta;
-    this.maxValues = (maxValues == null) ? 100 : maxValues;
-  }
-
-  imageLib.Image operator [](index) => this.cache[index];
-
-  void _add(imageLib.Image image) {
-    this.cache[image.size()] = image;
-  }
-
-  bool sizeShouldBeAdded(Size2D size) {
-    if (this.cache.length == 0) {
-      return true;
-    }
-
-    if (this.cache.length >= this.maxValues) {
-      return false;
-    }
-
-    Size2D closestSize = this.closestBiggerSize(size);
-
-    if (closestSize.totalDelta(size) < this.minDelta) {
-      return false;
-    }
-
-    return true;
-  }
-
-  void add(imageLib.Image image) {
-    var imageSize = image.size();
-    if (sizeShouldBeAdded(imageSize)) {
-      this._add(image);
-    }
-  }
-
-  void _addAll(List<imageLib.Image> images) {
-    for (var image in images) {
-      this._add(image);
-    }
-  }
-
-  void addAll(List<imageLib.Image> images) {
-    for (var image in images) {
-      this.add(image);
-    }
-  }
-
-  Size2D closestBiggerSize(Size2D size) {
-    List<Size2D> biggerSizes = this
-        .cache
-        .keys
-        .where((element) => element.compareTo(size) == 1)
-        .toList();
-
-    Size2D key = biggerSizes.reduce((curr, element) =>
-        curr.totalDelta(size) <= element.totalDelta(size) ? curr : element);
-
-    return key;
-  }
-
-  imageLib.Image closestBiggerMatrix(Size2D size) {
-    return this.cache[this.closestBiggerSize(size)];
-  }
-}
-
-class MatrixCache {
-  Map<Size2D, Matrix2D> cache;
-  int minDelta;
-  int maxValues;
-
-  MatrixCache({
-    Matrix2D matrix,
-    List<Matrix2D> matrices,
-    int minDelta,
-    int maxValues,
-  }) {
-    this.cache = Map();
-
-    if (matrix != null) {
-      this._add(matrix);
-    }
-
-    if (matrices != null) {
-      this._addAll(matrices);
-    }
-
-    this.minDelta = (minDelta == null) ? 20 : minDelta;
-    this.maxValues = (maxValues == null) ? 500 : maxValues;
-  }
-
-  Matrix2D operator [](index) => this.cache[index];
-
-  void _add(Matrix2D matrix) {
-    this.cache[matrix.size()] = matrix;
-  }
-
-  bool sizeShouldBeAdded(Size2D size) {
-    if (this.cache.length == 0) {
-      return true;
-    }
-
-    if (this.cache.length >= this.maxValues) {
-      return false;
-    }
-
-    Size2D closestSize = this.closestBiggerSize(size);
-
-    if (closestSize.totalDelta(size) < this.minDelta) {
-      return false;
-    }
-
-    return true;
-  }
-
-  void add(Matrix2D matrix) {
-    var matrixSize = matrix.size();
-    if (sizeShouldBeAdded(matrixSize)) {
-      this._add(matrix);
-    }
-  }
-
-  void _addAll(List<Matrix2D> matrices) {
-    for (var matrix in matrices) {
-      this._add(matrix);
-    }
-  }
-
-  void addAll(List<Matrix2D> matrices) {
-    for (var matrix in matrices) {
-      this.add(matrix);
-    }
-  }
-
-  Size2D closestBiggerSize(Size2D size) {
-    List<Size2D> biggerSizes = this
-        .cache
-        .keys
-        .where((element) => element.compareTo(size) == 1)
-        .toList();
-
-    Size2D key = biggerSizes.reduce((curr, element) =>
-        curr.totalDelta(size) <= element.totalDelta(size) ? curr : element);
-
-    return key;
-  }
-
-  Matrix2D closestBiggerMatrix(Size2D size) {
-    return this.cache[this.closestBiggerSize(size)];
-  }
+// imageLib.Image fromMatrix(Matrix2D matrix) {
+//   return matrix.to w
+// }
 }
 
 enum deltaAxis { x, y }
@@ -236,12 +73,48 @@ class ResizeableImage {
   MatrixCache energyMatrixCache;
   MatrixCache minEnergyMatrixCache;
   MatrixCache directionMatrixCache;
+  int speedup;
 
-  ResizeableImage(imageLib.Image image) {
+  bool initialized = false;
+  bool beingProtection = false;
+
+  String imagePath;
+
+  imageLib.Image image;
+  Directory tempDir;
+
+  ResizeableImage(
+    File imageFile, {
+    this.beingProtection: true,
+    this.speedup: 1,
+  }) {
+    imagePath = imageFile.path;
+    image = imageLib.decodeImage(imageFile.readAsBytesSync());
     width = image.width;
     height = image.height;
+    originalSize = image.size();
+  }
+
+  Future<void> init() async {
+    initialized = true;
+
+    Stopwatch stopwatch = new Stopwatch()..start();
+    tempDir = await getTemporaryDirectory();
+
+    Matrix2D<Uint32List> imageMatrix = Matrix2D.fromImage(image);
+    assert(imageMatrix.length == width * height);
+
+    imageMatrix
+        .toImage(pixelDataToARGB)
+        .saveInGallery(tempDir.path + '/original.png');
+
+    imageMatrixCache = MatrixCache(matrix: imageMatrix);
 
     Matrix2D<Uint8List> energyMatrix = forwardEnergy(image);
+
+    if (beingProtection) {
+      energyMatrix = await updateEnergyMatrixWithBeingDetection(energyMatrix);
+    }
 
     var vals = minEnergy(energyMatrix);
     var minEnergyMatrix = vals[0];
@@ -251,18 +124,217 @@ class ResizeableImage {
     minEnergyMatrixCache = MatrixCache(matrix: minEnergyMatrix);
     directionMatrixCache = MatrixCache(matrix: directionMatrix);
 
-    Matrix2D<Uint32List> imageMatrix = Matrix2D.fromImage(image);
-
-    assert(imageMatrix.length == width * height);
-
-    imageMatrixCache = MatrixCache(matrix: imageMatrix);
+    debugPrint('initialized in ${stopwatch.elapsed}');
   }
 
-  void atSize(Size2D size, savePath, {int speedup: 4}) {
-    Size2D closestSize = this.imageMatrixCache.closestBiggerSize(size);
-    debugPrint('closest size to $size was $closestSize');
+  Future<Matrix2D<Uint8List>> updateEnergyMatrixWithBeingDetection(
+    Matrix2D<Uint8List> energyMatrix,
+  ) async {
+    var result = await Tflite.runSegmentationOnImage(
+      path: imagePath,
+      // labelColors: [...], // defaults to https://github.com/shaqian/flutter_tflite/blob/master/lib/tflite.dart#L219
+      outputType: "bytes",
+    );
+
+    String segmentationPath = tempDir.path + '/segmentation.png';
+    saveImageFromData(
+      257,
+      257,
+      Uint8List.fromList(result).buffer.asUint32List(),
+      segmentationPath,
+      saveToGallery: false,
+    );
+
+    // await Tflite.close();
+
+    File segmentationFile = File(segmentationPath);
+    imageLib.Image segmentationImage =
+        imageLib.decodeImage(await segmentationFile.readAsBytes());
+
+    imageLib.Image resizedSegmentationImage = imageLib.copyResize(
+      segmentationImage,
+      width: width,
+      height: height,
+      interpolation: imageLib.Interpolation.nearest,
+    );
+
+    // String resizedSegmentationPath = tempDir.path + '/resized_segmentation.png';
+    // saveImageFromData(
+    //   width,
+    //   height,
+    //   resizedSegmentationImage.data,
+    //   resizedSegmentationPath,
+    //   saveToGallery: true,
+    // );
+
+    Matrix2D<Uint32List> segmentationMatrix =
+        Matrix2D.fromImage(resizedSegmentationImage);
+
+    Set<int> beingValues = {
+      // for some reason the result is in abgr
+      // Color.fromARGB(255, 192, 128, 128).value, // person
+      // Color.fromARGB(255, 64, 0, 128).value, // dog
+      // Color.fromARGB(255, 64, 0, 0).value, // cat
+      Color.fromARGB(255, 128, 128, 192).value, // person
+      Color.fromARGB(255, 128, 0, 64).value, // dog
+      Color.fromARGB(255, 0, 0, 64).value, // cat
+    };
+
+    // int c = 0;
+
+    int maxEnergy = energyMatrix.max();
+    // print(maxEnergy);
+
+    for (int y = 0; y < segmentationMatrix.height; y++) {
+      for (int x = 0; x < segmentationMatrix.width; x++) {
+        if (beingValues.contains(segmentationMatrix.getCell(x, y))) {
+          energyMatrix.setCell(x, y, maxEnergy);
+          // c++;
+        }
+      }
+    }
+
+    // String updatedEnergyPath = tempDir.path + '/updated_energy.png';
+    // saveEnergyMatrixImageToGallery(energyMatrix, updatedEnergyPath);
+
+    return energyMatrix;
+  }
+
+  atSize(Size2D size, savePath, {int speedup: 1}) async {
+    if (!initialized) {
+      await init();
+    }
+
+    Size2D deltaSize = size - originalSize;
+
+    Size2D smallerSize = Size2D(
+      originalSize.height + min(deltaSize.height, 0),
+      width + min(deltaSize.width, 0),
+    );
+
+    int totalDeltaToBeShrunk = originalSize.totalDelta(smallerSize);
+
+    Size2D biggerSize = Size2D(
+      originalSize.height + deltaSize.height,
+      width + deltaSize.width,
+    );
+
+    int totalDeltaToBeGrown = smallerSize.totalDelta(biggerSize);
+
+    print(totalDeltaToBeShrunk);
+    print(deltaSize);
+    print(smallerSize);
+    print(biggerSize);
+    print(totalDeltaToBeGrown);
+
+    var vars = await _atSmallerSize(smallerSize);
+
+    Matrix2D<Uint32List> imageMatrix = vars[0];
+    Matrix2D<Uint8List> energyMatrix = vars[1];
+
+    saveEnergyMatrixImageToGallery(energyMatrix, tempDir.path + '/energy.png');
+
+    imageMatrix = await _atBiggerSize(imageMatrix, energyMatrix, biggerSize);
+
+    saveImageFromImageMatrix(
+      imageMatrix,
+      savePath,
+      saveToGallery: true,
+    );
+  }
+
+  Future<Matrix2D<Uint32List>> _atBiggerSize(
+    Matrix2D<Uint32List> imageMatrix,
+    Matrix2D _energyMatrix,
+    Size2D biggerSize,
+  ) async {
+    Matrix2D<Uint32List> energyMatrix = Matrix2D<Uint32List>.fromData(
+      _energyMatrix.width,
+      _energyMatrix.height,
+      _energyMatrix.data,
+    );
+
+    Size2D sizeDelta = biggerSize - imageMatrix.size();
 
     Stopwatch stopwatch = new Stopwatch()..start();
+
+    for (var axis in [deltaAxis.x, deltaAxis.y]) {
+      int delta;
+
+      if (axis == deltaAxis.x) {
+        delta = sizeDelta.width;
+        if (delta == 0) {
+          print('skipping x axis');
+          continue;
+        }
+      } else {
+        // deltaAxis.y
+        delta = sizeDelta.height;
+        if (delta == 0) {
+          print('skipping y axis');
+          continue;
+        }
+
+        imageMatrix = imageMatrix.rotated(1);
+        energyMatrix = energyMatrix.rotated(1);
+      }
+      debugPrint('growing $delta seams in axis $axis');
+
+      // int neededSeams = min(delta, (0.025 * width).round());
+      int neededSeams = min(delta, (0.1 * width).round());
+      // int neededSeams = (0.3 * width).round();
+
+      var vars = minEnergy(energyMatrix);
+      Matrix2D<Uint32List> minEnergyMatrix = vars[0];
+      Matrix2D<Int8List> dirs = vars[1];
+
+      List<List<List<int>>> seams = List<List<List<int>>>(neededSeams);
+
+      Matrix2D<Uint32List> tempEnergyMatrixCopy = energyMatrix.clone();
+
+      int maxEnergy = energyMatrix.max();
+
+      for (int i = 0; i < neededSeams; i++) {
+        List<List<int>> seam = getMinEnergyVerticalSeam(dirs, minEnergyMatrix);
+
+        seams[i] = seam;
+
+        // int maxEnergy = 255 * height;
+        tempEnergyMatrixCopy.fillSeam(seam, maxEnergy);
+
+        recalculateMinEnergy_(
+            tempEnergyMatrixCopy, minEnergyMatrix, dirs, [seam]);
+      }
+
+      saveEnergyMatrixImageToGallery(tempEnergyMatrixCopy, tempDir.path + '/energy post.png');
+
+
+      Iterable<List<List<int>>> seamsIt = cycle(seams);
+      List<List<List<int>>> seamsToExpand = List<List<List<int>>>(delta);
+
+      seamsToExpand.setRange(0, delta, seamsIt);
+
+      vars = imageMatrix.withExpandedSeams(seamsToExpand);
+      imageMatrix = vars[0];
+      List<int> indicesToFill = vars[1];
+
+      fillImageMatrixIndicesByInterpolation(imageMatrix, indicesToFill);
+
+      if (axis == deltaAxis.y) {
+        imageMatrix = imageMatrix.rotated(-1);
+      }
+
+    }
+
+    return imageMatrix;
+  }
+
+  Future<List> _atSmallerSize(Size2D smallerSize) async {
+    assert(smallerSize.height <= originalSize.height &&
+        smallerSize.width <= originalSize.width);
+
+    Size2D closestSize = imageMatrixCache.closestBiggerEqualSize(smallerSize);
+    debugPrint('closest size to $smallerSize was $closestSize');
 
     Matrix2D<Uint32List> imageMatrix =
         this.imageMatrixCache[closestSize].clone();
@@ -273,15 +345,13 @@ class ResizeableImage {
     Matrix2D<Int8List> directionMatrix =
         this.directionMatrixCache[closestSize].clone();
 
-    debugPrint('set up in in ${stopwatch.elapsed}');
-
     var vals;
     List<List<int>> seam;
     List<List<List<int>>> lastSeams;
 
-    Size2D sizeDelta = closestSize - size;
+    Size2D sizeDelta = closestSize - smallerSize;
 
-    List<List<List<int>>> allSeams = List(sizeDelta.total());
+    List<List<List<int>>> allSeams = List<List<List<int>>>(sizeDelta.total());
 
     Stopwatch loopStopwatch = new Stopwatch()..start();
 
@@ -311,7 +381,6 @@ class ResizeableImage {
       }
 
       debugPrint('carving $delta seams in axis $axis');
-
 
       for (int i = 0; i < (delta / speedup).ceil(); i++) {
         int numCarvings = min(speedup, delta - i * speedup);
@@ -353,10 +422,10 @@ class ResizeableImage {
           // Isolate.spawn(carveIsolateHelper, [imageMatrix, seam]);
           // imageMatrix = await c1;
 
-          imageMatrix = imageMatrix.carveSeam(seam, ordered: true);
-          energyMatrix = energyMatrix.carveSeam(seam, ordered: true);
-          minEnergyMatrix = minEnergyMatrix.carveSeam(seam, ordered: true);
-          directionMatrix = directionMatrix.carveSeam(seam, ordered: true);
+          imageMatrix = imageMatrix.withCarvedSeam(seam, ordered: true);
+          energyMatrix = energyMatrix.withCarvedSeam(seam, ordered: true);
+          minEnergyMatrix = minEnergyMatrix.withCarvedSeam(seam, ordered: true);
+          directionMatrix = directionMatrix.withCarvedSeam(seam, ordered: true);
           lastSeams.add(seam);
           numCarved++;
         }
@@ -369,15 +438,15 @@ class ResizeableImage {
         if (energyMatrixCache.sizeShouldBeAdded(newSize)) {
           debugPrint('$newSize is being added to cache');
 
-          int rotation = axis == deltaAxis.x ? 0 : -1;
+          int rot = axis == deltaAxis.x ? 0 : -1;
 
-          this.imageMatrixCache._add(imageMatrix.rotated(rotation));
-          this.energyMatrixCache._add(energyMatrix.rotated(rotation));
-          this.minEnergyMatrixCache._add(minEnergyMatrix.rotated(rotation));
-          this.directionMatrixCache._add(directionMatrix.rotated(rotation));
+          imageMatrixCache.add(imageMatrix.rotated(rot), check: false);
+          energyMatrixCache.add(energyMatrix.rotated(rot), check: false);
+          minEnergyMatrixCache.add(minEnergyMatrix.rotated(rot), check: false);
+          directionMatrixCache.add(directionMatrix.rotated(rot), check: false);
         }
 
-        debugPrint(i.toString());
+        // debugPrint(i.toString());
       }
 
       if (axis == deltaAxis.y) {
@@ -392,23 +461,106 @@ class ResizeableImage {
       debugPrint('');
     }
 
-    saveImageFromImageMatrix(imageMatrix, savePath);
+    return [imageMatrix, energyMatrix];
   }
 }
 
-List<int> pixelDataToARGB(int pixelData) {
-  int alpha = pixelData >> 24 & 255;
-  int red = pixelData >> 16 & 255;
-  int green = pixelData >> 8 & 255;
-  int blue = pixelData >> 0 & 255;
-  return [alpha, red, green, blue];
+void fillImageMatrixIndicesByInterpolation(
+    Matrix2D<Uint32List> imageMatrix, List<int> indicesToFill) {
+  // imageLib.Image image;
+  // image.getPixelLinear(fx, fy)
+
+  // imageMatrix.xyFromIndex();
+
+  int left;
+  int right;
+  int steps;
+
+  List<int> curr = [];
+  List<int> fillVals;
+
+  for (int ii = 0; ii < indicesToFill.length; ii++) {
+    var vars = imageMatrix.xyFromIndex(indicesToFill[ii]);
+    int x = vars[0];
+    int y = vars[1];
+
+    if ((curr.length == 0 || indicesToFill[ii] == curr[curr.length - 1] + 1) &&
+        x != imageMatrix.width - 1) {
+      curr.add(indicesToFill[ii]);
+    } else {
+      left = curr[0];
+      right = curr[curr.length - 1];
+      steps = curr.length;
+
+      if (imageMatrix.xyFromIndex(left)[0] == 0) {
+        // not lefter pixels
+        int fillVal = imageMatrix.data[right + 1];
+        fillVals = cycle([fillVal]).take(steps).toList();
+      } else if (imageMatrix.xyFromIndex(right)[0] == imageMatrix.width - 1) {
+        // no pixels to right
+        int fillVal = imageMatrix.data[left - 1];
+        fillVals = cycle([fillVal]).take(steps).toList();
+      } else {
+        List<int> leftARGB = pixelDataToARGB(imageMatrix.data[left - 1]);
+        List<int> rightARGB = pixelDataToARGB(imageMatrix.data[right + 1]);
+
+        List<int> deltasARGB = count()
+            .take(4)
+            .map((i) => ((rightARGB[i] - leftARGB[i]) / (steps + 1)).round())
+            .toList();
+
+        List<List<int>> interpolates =
+            List.generate(steps, (index) => List.generate(4, (index) => null));
+
+        count().take(steps).forEach((step) {
+          count().take(4).forEach((channelInd) {
+            interpolates[step][channelInd] =
+                leftARGB[channelInd] + (step + 1) * deltasARGB[channelInd];
+                // 255;
+          });
+        });
+
+        fillVals = interpolates.map(pixelARGBChannelsToARGBBytes).toList();
+      }
+
+      enumerate(curr).forEach((element) {
+        imageMatrix.data[element.value] = fillVals[element.index];
+      });
+
+      curr = [indicesToFill[ii]];
+    }
+  }
 }
 
-int ARGBToBrightness(List<int> argb) {
+class BottomRightPriorityCoordinates extends Equatable implements Comparable {
+  final int y;
+  final int x;
+
+  const BottomRightPriorityCoordinates(this.y, this.x);
+
+  @override
+  int compareTo(other) {
+    if (this.y == other.y) {
+      return this.x.compareTo(other.x); // smaller x (closer to left) preferable
+    } else {
+      return -1 *
+          this.y.compareTo(other.y); // bigger y (closer to bottom) preferable
+    }
+  }
+
+  @override
+  List<Object> get props => [y, x];
+}
+
+int ARGBToBrightness(
+  List<int> argb,
+) {
   return imageLib.getLuminanceRgb(argb[1], argb[2], argb[3]);
 }
 
-Matrix2D<Uint8List> pixelBrightnessMatrixFromImage(imageLib.Image image) =>
+Matrix2D<Uint8List> pixelBrightnessMatrixFromImage(
+  imageLib.Image image,
+) =>
     Matrix2D.fromData(
         image.width,
         image.height,
@@ -421,12 +573,12 @@ Matrix2D<Uint8List> pixelBrightnessMatrixFromImage(imageLib.Image image) =>
 
 List<List<int>> getMinEnergyVerticalSeam(
   Matrix2D dirs,
-  Matrix2D minimumEdgyness, {
+  Matrix2D minEnergyMatrix, {
   bool correctEdges: false,
 }) {
   List<List<int>> seam = new List(dirs.height);
 
-  int x = argmin(minimumEdgyness.getRow(0));
+  int x = argmin(minEnergyMatrix.getRow(0));
 
   for (int y = 0; y < dirs.height; y++) {
     seam[y] = [y, x];
@@ -447,13 +599,50 @@ List<List<int>> getMinEnergyVerticalSeam(
   return seam;
 }
 
-void paintSeam_(imageLib.Image image, List<List<int>> seam) {
+List<List<List<int>>> getMinEnergyVerticalSeamsPercentile(
+  Matrix2D dirs,
+  Matrix2D minEnergyMatrix,
+  double percentile, {
+  bool correctEdges: false,
+}) {
+  int numSeams = (dirs.width * percentile).round();
+
+  assert(numSeams > 0);
+
+  // List<List<List<int>>> seams = List<List<List<int>>>(numSeams);
+  List<List<List<int>>> seams = List.generate(
+      numSeams, (index) => List.generate(dirs.height, (index) => null));
+
+  int i = 0;
+
+  for (int x in argmins(minEnergyMatrix.getRow(0), numSeams)) {
+    for (int y = 0; y < dirs.height; y++) {
+      seams[i][y] = [y, x];
+      x += dirs.getCell(x, y);
+      if (correctEdges) {
+        x = x.clamp(0, dirs.width - 1);
+      }
+
+      assert(x >= 0);
+      assert(x < dirs.width);
+    }
+    i++;
+  }
+  return seams;
+}
+
+void paintSeam_(
+  imageLib.Image image,
+  List<List<int>> seam,
+) {
   for (List<int> seamYX in seam) {
     image.setPixelRgba(seamYX[1], seamYX[0], 255, 0, 0);
   }
 }
 
-minEnergy(Matrix2D energyMatrix) {
+List minEnergy(
+  Matrix2D energyMatrix,
+) {
   int height = energyMatrix.height;
   int width = energyMatrix.width;
 
@@ -481,26 +670,6 @@ minEnergy(Matrix2D energyMatrix) {
     }
   }
   return [leastE, dirs];
-}
-
-class BottomRightPriorityCoordinates extends Equatable implements Comparable {
-  final int y;
-  final int x;
-
-  const BottomRightPriorityCoordinates(this.y, this.x);
-
-  @override
-  int compareTo(other) {
-    if (this.y == other.y) {
-      return this.x.compareTo(other.x); // smaller x (closer to left) preferable
-    } else {
-      return -1 *
-          this.y.compareTo(other.y); // bigger y (closer to bottom) preferable
-    }
-  }
-
-  @override
-  List<Object> get props => [y, x];
 }
 
 recalculateMinEnergyQueue_(
@@ -584,7 +753,7 @@ recalculateMinEnergyQueue_(
 }
 
 // ignore: non_constant_identifier_names
-recalculateMinEnergy_(
+void recalculateMinEnergy_(
   Matrix2D energyMatrix,
   Matrix2D minEnergyMatrix,
   Matrix2D dirs,
@@ -703,7 +872,10 @@ recalculateMinEnergy_(
   // print(c);
 }
 
-Matrix2D<Uint8List> forwardEnergy(imageLib.Image image, [saveDir]) {
+Matrix2D<Uint8List> forwardEnergy(
+  imageLib.Image image, [
+  saveDir,
+]) {
   // https://nbviewer.jupyter.org/github/axu2/improved-seam-carving/blob/master/Improved%20Seam%20Carving.ipynb
   Matrix2D<Uint8List> brightnessMatrix = pixelBrightnessMatrixFromImage(image);
 
@@ -756,7 +928,9 @@ Matrix2D<Uint8List> forwardEnergy(imageLib.Image image, [saveDir]) {
   return energy;
 }
 
-int pixelBrightnessToARGBBytes(int brightness) {
+int pixelBrightnessToARGBBytes(
+  int brightness,
+) {
   //todo: bitshifting
   String bitString = '';
 
@@ -766,41 +940,78 @@ int pixelBrightnessToARGBBytes(int brightness) {
   return bitsToInt(bitString);
 }
 
-int bitsToInt(String bitString) => //todo: bitshifting
+int bitsToInt(
+  String bitString,
+) => //todo: bitshifting
     int.parse(int.parse(bitString, radix: 2).toRadixString(10));
 
-int pixelARGBChannelsToARGBBytes(List<int> channels) {
-  int argbBytes = 0;
+int pixelARGBChannelsToARGBBytes(
+  List<int> channels,
+) {
+  // int argbBytes = 0;
+  //
+  // for (int i = 0; i < 4; i++) {
+  //   argbBytes += channels[i] << (3 - i) * 8;
+  // }
 
-  for (int i = 0; i < 4; i++) {
-    argbBytes += channels[i] << (3 - i) * 8;
-  }
+  int argbBytes = (((channels[0] & 0xff) << 24) |
+          ((channels[1] & 0xff) << 16) |
+          ((channels[2] & 0xff) << 8) |
+          ((channels[3] & 0xff) << 0)) &
+      0xFFFFFFFF;
+
   return argbBytes;
 }
 
-imageLib.Image matrixToImage(
-        Matrix2D matrix, List<int> Function(int) pixelFunc) =>
-    imageLib.Image.fromBytes(
-        matrix.width,
-        matrix.height,
-        matrix
-            .getData()
-            .map(pixelFunc)
-            .map(pixelARGBChannelsToARGBBytes)
-            .toList(growable: false));
-
-void saveImageFromImageMatrix(Matrix2D<Uint32List> imageMatrix, String path) {
-  saveImageFromData(
-      imageMatrix.width, imageMatrix.height, imageMatrix.getData(), path);
+List<int> pixelDataToARGB(
+  int pixelData,
+) {
+  int alpha = pixelData >> 24 & 255;
+  int red = pixelData >> 16 & 255;
+  int green = pixelData >> 8 & 255;
+  int blue = pixelData >> 0 & 255;
+  return [alpha, red, green, blue];
 }
 
-void saveImageFromData(int width, int height, Uint32List data, String path) {
+void saveEnergyMatrixImageToGallery(
+  Matrix2D energyMatrix,
+  String path,
+) {
+  imageLib.Image image =
+      // energyMatrix.toImage((energy) => [255] + [energy, energy, energy]);
+      energyMatrix.toImage((energy) => [energy, energy, energy] + [255]);
+
+  image.saveInGallery(path);
+}
+
+void saveImageFromImageMatrix(
+  Matrix2D<Uint32List> imageMatrix,
+  String path, {
+  saveToGallery: false,
+}) {
+  saveImageFromData(
+    imageMatrix.width,
+    imageMatrix.height,
+    imageMatrix.getData(),
+    path,
+    saveToGallery: saveToGallery,
+  );
+}
+
+void saveImageFromData(
+  int width,
+  int height,
+  Uint32List data,
+  String path, {
+  saveToGallery: false,
+}) {
   Uint8List bytes = data.buffer.asUint8List();
   // assert (bytes.length == width * height);
   decodeImageFromPixels(
     bytes,
     width,
     height,
+    // PixelFormat.rgba8888,
     PixelFormat.rgba8888,
     (Image im) async {
       ByteData byteData = await im.toByteData();
@@ -809,12 +1020,15 @@ void saveImageFromData(int width, int height, Uint32List data, String path) {
         image = imageLib.Image.fromBytes(
             width, height, (byteData).buffer.asInt8List()),
         new File(path).writeAsBytesSync(imageLib.encodePng(image)),
-        GallerySaver.saveImage(path),
+        if (saveToGallery)
+          {
+            GallerySaver.saveImage(path),
+          }
       };
     },
   );
 }
 
 void carveIsolateHelper(vars) {
-  vars[2].send(vars[0].carveSeam(vars[1], ordered: true));
+  vars[2].send(vars[0].withCarvedSeam(vars[1], ordered: true));
 }

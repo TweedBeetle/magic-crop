@@ -4,6 +4,8 @@ import 'package:photofilters/filters/filters.dart';
 import 'package:image/image.dart' as imageLib;
 import 'dart:math';
 
+import 'package:quiver/iterables.dart';
+
 final _random = new Random();
 
 /**
@@ -57,6 +59,7 @@ List<List<bool>> fill2dBool(int height, int width, bool elem) {
   return List.generate(height, (y) => List.generate(width, (x) => elem));
 }
 
+
 findmin(List l) {
   var ind = argmin(l);
   return [ind, l[ind]];
@@ -94,6 +97,26 @@ argmin(List l) {
   }
 
   return ind;
+}
+
+range({int start: 0, int step: 1, int steps})  {
+
+  if (steps == null) {
+    return count(start, step);
+  }
+
+  return count(start, step).take(steps);
+}
+
+argmins(List l, int n) {
+  assert(l.length >= n);
+  assert(n >= 0);
+
+  List<int> indices = List.generate(l.length, (index) => index);
+
+  indices.sort((a, b) => l[a].compareTo(l[b]));
+
+  return indices.take(n).toList();
 }
 
 //class ImageUtils {

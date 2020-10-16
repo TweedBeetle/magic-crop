@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter_app_new/seam_carving.dart';
 import 'package:image/image.dart' as imageLib;
 
 class Size2D extends Equatable implements Comparable {
@@ -21,7 +23,7 @@ class Size2D extends Equatable implements Comparable {
     }
   }
 
-  Size2D inverted () {
+  Size2D inverted() {
     return Size2D(width, height);
   }
 
@@ -146,7 +148,8 @@ class Matrix2D<T extends List<int>> implements Sizeable2D {
       : width = image.width,
         height = image.height,
         data =
-            initializeDataFromList<T>(Int32List.view(image.getBytes().buffer)),
+            // initializeDataFromList<T>(Uint32List.view(image.getBytes().buffer)),
+            initializeDataFromList<T>(image.getBytes().buffer.asUint32List()),
         rotation = 0 {
     assert(data.length == image.data.length);
   }
@@ -157,7 +160,9 @@ class Matrix2D<T extends List<int>> implements Sizeable2D {
     List<int> data,
   )   : width = width,
         height = height,
-        data = data is T ? data : initializeDataFromList<T>(data);
+        data = data is T ? data : initializeDataFromList<T>(data) {
+    assert(width * height == data.length);
+  }
 
   Matrix2D<T> rotated(int newRotation) {
     if (newRotation == 0) {
@@ -224,24 +229,27 @@ class Matrix2D<T extends List<int>> implements Sizeable2D {
   }
 
   int index(int x, int y) {
-
     switch (rotation) {
-      case 0: {
-        return y * width + x;
-      }
-      case 1: {
-        int newX = y;
-        int newY = width - x - 1;
-        return newY * height + newX;
-      }
-      case -1: {
-        int newY = x;
-        int newX = height - y - 1;
-        return newY * height + newX;
-      }
-      default: {
-        throw Exception('rotation $rotation not supported');
-      }
+      case 0:
+        {
+          return y * width + x;
+        }
+      case 1:
+        {
+          int newX = y;
+          int newY = width - x - 1;
+          return newY * height + newX;
+        }
+      case -1:
+        {
+          int newY = x;
+          int newX = height - y - 1;
+          return newY * height + newX;
+        }
+      default:
+        {
+          throw Exception('rotation $rotation not supported');
+        }
     }
 
     // if (rotation == 1) {
@@ -290,7 +298,7 @@ class Matrix2D<T extends List<int>> implements Sizeable2D {
     return Size2D(height, width);
   }
 
-  Matrix2D<T> carveIndices(
+  Matrix2D<T> withCarvedIndices(
     List<int> indices, {
     ordered: false,
   }) {
@@ -316,7 +324,7 @@ class Matrix2D<T extends List<int>> implements Sizeable2D {
     int lastRemovalEnd = -1;
     int lastInsertEnd = 0;
     for (int removalEnd in indices) {
-      int insertStart = lastInsertEnd + 0;
+      int insertStart = lastInsertEnd;
       int insertEnd = insertStart + (removalEnd - lastRemovalEnd) - 1;
       int skip = lastRemovalEnd + 1;
       newData.setRange(
@@ -342,7 +350,7 @@ class Matrix2D<T extends List<int>> implements Sizeable2D {
     return Matrix2D.fromData(width - 1, height, newData);
   }
 
-  Matrix2D<T> carveSeams(
+  Matrix2D<T> withCarvedSeams(
     List<List<List<int>>> seams,
   ) {
     var seamLength = seams[0].length;
@@ -356,17 +364,93 @@ class Matrix2D<T extends List<int>> implements Sizeable2D {
       );
     }
 
-    return carveIndices(indices, ordered: false);
+    return withCarvedIndices(indices, ordered: false);
   }
 
-  Matrix2D<T> carveSeam(
+  Matrix2D<T> withCarvedSeam(
     List<List<int>> seam, {
     ordered: false,
   }) {
     List<int> indices =
         seam.map((coordYX) => this.index(coordYX[1], coordYX[0])).toList();
 
-    return carveIndices(indices, ordered: ordered);
+    return withCarvedIndices(indices, ordered: ordered);
+  }
+
+  List withExpandedSeams(
+    List<List<List<int>>> seams,
+  ) {
+    List<List<int>> cells = seams.expand((x) => x).toList(growable: false);
+    // cells.sort((a, b) => -1 * a[1].compareTo(b[1]));
+
+    List<int> indices =
+        cells.map((coordYX) => this.index(coordYX[1], coordYX[0])).toList();
+
+    return withExpandedIndices(indices);
+  }
+
+  List withExpandedIndices(List<int> indices) {
+    if (rotation != 0) {
+      throw UnimplementedError;
+    }
+
+    int widthDelta = indices.length ~/ height;
+
+    assert(widthDelta > 0);
+
+    var newLength = data.length + indices.length;
+    assert(newLength == data.length + widthDelta * height);
+
+    final T newData = initializeData(newLength);
+
+    Uint32List indicesToFill = Uint32List(indices.length);
+
+    int i = 0;
+    indices.sort();
+    int lastRemovalEnd = -1;
+    int lastInsertEnd = -1;
+    for (int removalEnd in indices) {
+      int insertStart = lastInsertEnd + 1;
+      int insertEnd = insertStart + (removalEnd - lastRemovalEnd);
+      int skip = lastRemovalEnd + 1;
+      try {
+        newData.setRange(
+          insertStart,
+          insertEnd,
+          data,
+          skip,
+        );
+      } catch (e) {
+        print(e);
+      }
+
+      indicesToFill[i++] = insertEnd;
+
+      lastInsertEnd = insertEnd;
+      lastRemovalEnd = removalEnd;
+    }
+
+    newData.setRange(
+      lastInsertEnd + 1,
+      newLength,
+      data,
+      lastRemovalEnd + 1,
+    );
+
+    // int di = 0;
+    // for (int i = 0; i < newData.length; i++) {
+    //   if (indices[di] == i) {
+    //     di++;
+    //   }
+    //   newData[i] = this.data[i + di];
+    // }
+
+    // indicesToFill.forEach((index) {assert (newData[index] == 0);});
+
+    Matrix2D<T> newMatrix =
+        Matrix2D.fromData(width + widthDelta, height, newData);
+
+    return [newMatrix, indicesToFill];
   }
 
   rowSublist(int y, int leftBound, int rightBound) {
@@ -405,10 +489,52 @@ class Matrix2D<T extends List<int>> implements Sizeable2D {
     return valminOf2 < thirdVal ? [argminOf2, valminOf2] : [2, thirdVal];
   }
 
+  imageLib.Image toImage(List<int> Function(int) pixelFunc) =>
+      imageLib.Image.fromBytes(width, height,
+          this.getData().map(pixelFunc).expand((x) => x).toList());
+
+  // .map(pixelARGBChannelsToARGBBytes)
+  // .toList(growable: false));
+
   @override
   String toString() {
     return (List.generate(height, (y) => getRow(y))).join('\n');
   }
+
+  void fillSeam(List<List<int>> seam, int value) {
+    seam.forEach((YXind) {
+      setCell(YXind[1], YXind[0], value);
+    });
+  }
+
+  List<int> xyFromIndex(int i) {
+    // y * width + x
+
+    int y = (i / width).floor();
+    int x = i - y * width;
+
+    assert(index(x, y) == i);
+
+    return [x, y];
+  }
+
+  double mean() {
+    return data.reduce((a, b) => a + b) / data.length;
+  }
+
+  double std([mean]) {
+    mean = mean ?? this.mean();
+
+    double variance = data.map((v) => pow(mean - v, 2)).reduce((a, b) => a + b) /
+        data.length;
+
+    return sqrt(variance);
+  }
+
+  int max() {
+    return data.reduce((a, b) => a < b ? b : a);
+  }
+
 }
 
 Matrix2D carveSeam(
@@ -416,5 +542,92 @@ Matrix2D carveSeam(
   List<List<int>> seam, {
   ordered: false,
 }) {
-  return matrix.carveSeam(seam, ordered: ordered);
+  return matrix.withCarvedSeam(seam, ordered: ordered);
+}
+
+class MatrixCache {
+  Map<Size2D, Matrix2D> cache;
+  int minDelta;
+  int maxValues;
+  Size2D originalSize;
+
+  MatrixCache({
+    Matrix2D matrix,
+    List<Matrix2D> matrices,
+    int minDelta,
+    int maxValues,
+  }) {
+    this.cache = Map();
+
+    if (matrix != null) {
+      this._add(matrix);
+    }
+
+    if (matrices != null) {
+      this._addAll(matrices);
+    }
+
+    this.minDelta = (minDelta == null) ? 20 : minDelta;
+    this.maxValues = (maxValues == null) ? 500 : maxValues;
+  }
+
+  Matrix2D operator [](index) => this.cache[index];
+
+  void _add(Matrix2D matrix) {
+    this.cache[matrix.size()] = matrix;
+  }
+
+  bool sizeShouldBeAdded(Size2D size) {
+    if (this.cache.length == 0) {
+      return true;
+    }
+
+    if (this.cache.length >= this.maxValues) {
+      return false;
+    }
+
+    Size2D closestSize = this.closestBiggerEqualSize(size);
+
+    if (closestSize.totalDelta(size) < this.minDelta) {
+      return false;
+    }
+
+    return true;
+  }
+
+  void add(Matrix2D matrix, {check: true}) {
+    var matrixSize = matrix.size();
+    if (!check || sizeShouldBeAdded(matrixSize)) {
+      this._add(matrix);
+    }
+  }
+
+  void _addAll(List<Matrix2D> matrices) {
+    for (var matrix in matrices) {
+      this._add(matrix);
+    }
+  }
+
+  void addAll(List<Matrix2D> matrices) {
+    for (var matrix in matrices) {
+      this.add(matrix);
+    }
+  }
+
+  Size2D closestBiggerEqualSize(Size2D size) {
+    List<Size2D> biggerSizes = this
+        .cache
+        .keys
+        .where((element) => element.compareTo(size) >= 0)
+        .toList();
+
+    Size2D key = biggerSizes.reduce((curr, element) =>
+        curr.totalDelta(size) <= element.totalDelta(size) ? curr : element);
+
+    return key;
+  }
+
+  Matrix2D closestBiggerMatrix(Size2D size) {
+    return this.cache[this.closestBiggerEqualSize(size)];
+  }
 }

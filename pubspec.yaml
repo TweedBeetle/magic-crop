@@ -31,11 +31,13 @@ dependencies:
   dartx:
   collection:
   equatable:
+  quiver:
   # vector_math:
   path_provider:
   gallery_saver:
   permission_handler:
   isolate:
+  tflite:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -63,6 +65,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/models/lite-model_deeplabv3_1_metadata_2.tflite
 
 
 

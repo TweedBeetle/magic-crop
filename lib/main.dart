@@ -20,6 +20,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:photofilters/utils/convolution_kernels.dart';
 import 'package:vector_math/vector_math.dart';
 import 'package:binary/binary.dart';
+import 'package:tflite/tflite.dart';
 
 void main() => runApp(new MaterialApp(home: MyApp()));
 
@@ -68,13 +69,19 @@ class _MyAppState extends State<MyApp> {
 
   Future pickImage(context) async {
     await Permission.storage.request();
-    tempDir = await getTemporaryDirectory();
+
+    if (tempDir == null) {
+      tempDir = await getTemporaryDirectory();
+    }
+
     PickedFile pickedImageFile = await picker.getImage(
       source: ImageSource.gallery,
       maxHeight: 1080,
       maxWidth: 1080,
     );
 
+    // pickedImageFile.readAsBytes()
+    // imageLib.Image a = imageLib.decodeImage(await pickedImageFile.readAsBytes());
     imageFile = File(pickedImageFile.path);
 
     print(tempDir);
@@ -115,88 +122,65 @@ class _MyAppState extends State<MyApp> {
                   ? Center(
                       child: new Text('No image selected.'),
                     )
-                  : convolveAndDisplay(imageFile),
-//                  : new Text('done'),
+                  // : convolveAndDisplay(imageFile),
+                 : new Text('done'),
             ),
             new Container(
               child: ci == null
                   ? Center(
-                      child: new Text('No cv made.'),
+                      child: new Text('No image selected'),
                     )
 //                  : Image.memory(imageLib.encodePng(ci)),
-                  : new Text('cv made.'),
+                  : new Text('done'),
 //                  : Image.file(ci),
             ),
           ],
         ),
       ),
       floatingActionButton: new FloatingActionButton(
-        onPressed: () => pickImage(context),
+        onPressed: () async => {await pickImage(context), convolveAndDisplay(imageFile),
+        },
         tooltip: 'Pick Image',
         child: new Icon(Icons.add_photo_alternate),
       ),
     );
   }
 
-  void rotationTesting() {
-    Matrix2D<Uint8List> m = Matrix2D.fromData(3, 2, [1, 2, 3, 4, 5, 6]);
-    print(m);
-    print('----');
-    m.pseudoRotateRight();
-    print(m);
-    print('----');
-    m.pseudoRotateLeft();
-    m.pseudoRotateLeft();
-    print(m);
-    print('===');
-    m.pseudoRotateRight();
-
-    Matrix2D<Uint8List> mr = m.rotated(1);
-
-    print(mr);
-    print('----');
-
-    var carved = mr.carveSeam([
-      [0, 1],
-      [1, 0],
-      [2, 1]
-    ]);
-
-    print(carved.toString());
-    print('----');
-    print(carved.rotated(-1));
-  }
-
-  convolveAndDisplay(File imageFile) {
+  convolveAndDisplay(File imageFile) async {
     // print(1.0.ceil());
 
-    imageLib.Image image = imageLib.decodeImage(imageFile.readAsBytesSync());
+    String res = await Tflite.loadModel(
+        model: "assets/models/lite-model_deeplabv3_1_metadata_2.tflite",
+        numThreads: 4,
+        // defaults to 1
+        isAsset: true,
+        // defaults to true, set to false to load resources outside assets
+        useGpuDelegate:
+        false // defaults to false, set to true to use GPU delegate
+    );
 
-    ResizeableImage resizeableImage = ResizeableImage(image);
+    // print(res);
+    assert(res == 'success');
 
-    String pathName = tempDir.path + '/cropped.png';
-    // String pathName = tempDir.path + '/cropped.png';
+    ResizeableImage resizeableImage = ResizeableImage(imageFile, beingProtection: false);
+
+    String pathName = tempDir.path + '/cropped030db.png';
 
     Stopwatch totalStopwatch = new Stopwatch()..start();
 
-    resizeableImage.atSize(
-      Size2D(image.height-100, image.width -200),
+    await resizeableImage.init();
+
+    await resizeableImage.atSize(
+      Size2D(1000, 1000),
       pathName,
       speedup: 1,
     );
 
-    // resizeableImage.atSize(
-    //   Size2D(image.height, image.width - 210),
-    //   pathName,
-    // );
+    return Image.file(imageFile);
+    // return Text('asdas');
     //
-    // resizeableImage.atSize(
-    //   Size2D(image.height, image.width - 190),
-    //   pathName,
-    // );
-
-    print('completed in ${totalStopwatch.elapsed}');
-    print('Saved to $pathName');
+    // print('completed in ${totalStopwatch.elapsed}');
+    // print('Saved to $pathName');
 
     // Int32List l1 = Int32List.fromList([1,2,3,4,5,6,7]);
     // Int32List l2 = Int32List.fromList([1,2,3,4,5,6,7].reversed.toList());
@@ -327,4 +311,35 @@ class _MyAppState extends State<MyApp> {
 //   matrixImageCopy.carveSeam(randomSeam);
 //   return matrixImageCopy;
 // }
+
+  void rotationTesting() {
+    Matrix2D<Uint8List> m = Matrix2D.fromData(3, 2, [1, 2, 3, 4, 5, 6]);
+    print(m);
+    print('----');
+    m.pseudoRotateRight();
+    print(m);
+    print('----');
+    m.pseudoRotateLeft();
+    m.pseudoRotateLeft();
+    print(m);
+    print('===');
+    m.pseudoRotateRight();
+
+    Matrix2D<Uint8List> mr = m.rotated(1);
+
+    print(mr);
+    print('----');
+
+    var carved = mr.withCarvedSeam([
+      [0, 1],
+      [1, 0],
+      [2, 1]
+    ]);
+
+    print(carved.toString());
+    print('----');
+    print(carved.rotated(-1));
+  }
+
+
 }
