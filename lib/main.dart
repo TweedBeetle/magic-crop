@@ -76,9 +76,14 @@ class _MyAppState extends State<MyApp> {
 
     PickedFile pickedImageFile = await picker.getImage(
       source: ImageSource.gallery,
+      // maxHeight: 1280,
+      // maxWidth: 1280,
       maxHeight: 1080,
       maxWidth: 1080,
+      // maxHeight: 720,
+      // maxWidth: 720,
     );
+
 
     // pickedImageFile.readAsBytes()
     // imageLib.Image a = imageLib.decodeImage(await pickedImageFile.readAsBytes());
@@ -123,7 +128,7 @@ class _MyAppState extends State<MyApp> {
                       child: new Text('No image selected.'),
                     )
                   // : convolveAndDisplay(imageFile),
-                 : new Text('done'),
+                  : new Text('done'),
             ),
             new Container(
               child: ci == null
@@ -138,7 +143,9 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
       floatingActionButton: new FloatingActionButton(
-        onPressed: () async => {await pickImage(context), convolveAndDisplay(imageFile),
+        onPressed: () async => {
+          await pickImage(context),
+          convolveAndDisplay(imageFile),
         },
         tooltip: 'Pick Image',
         child: new Icon(Icons.add_photo_alternate),
@@ -156,25 +163,41 @@ class _MyAppState extends State<MyApp> {
         isAsset: true,
         // defaults to true, set to false to load resources outside assets
         useGpuDelegate:
-        false // defaults to false, set to true to use GPU delegate
-    );
+            false // defaults to false, set to true to use GPU delegate
+        );
 
     // print(res);
     assert(res == 'success');
 
-    ResizeableImage resizeableImage = ResizeableImage(imageFile, beingProtection: false);
+    ResizeableImage resizeableImage = ResizeableImage(
+      imageFile,
+      beingProtection: false,
+      debug: false,
+      speedup: 1,
+      video:true,
+    );
 
-    String pathName = tempDir.path + '/cropped030db.png';
+    String pathName = tempDir.path + '/cropped.png';
 
     Stopwatch totalStopwatch = new Stopwatch()..start();
 
     await resizeableImage.init();
 
-    await resizeableImage.atSize(
-      Size2D(1000, 1000),
+    await resizeableImage.atRatio(
+      16/16,
+      0.75,
+      // 0,
+      // 0.5,
       pathName,
-      speedup: 1,
     );
+
+
+    // await resizeableImage.atSize(
+    //   Size2D(810, 1110),
+    //   // Size2D(830, 1080),
+    //   pathName,
+    //   speedup: 1,
+    // );
 
     return Image.file(imageFile);
     // return Text('asdas');
@@ -340,6 +363,4 @@ class _MyAppState extends State<MyApp> {
     print('----');
     print(carved.rotated(-1));
   }
-
-
 }
