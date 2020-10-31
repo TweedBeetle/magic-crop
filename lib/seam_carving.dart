@@ -20,6 +20,9 @@ import 'package:image/image.dart' as imageLib;
 import 'package:path_provider/path_provider.dart';
 import 'package:quiver/iterables.dart' show cycle, count, enumerate;
 import 'package:tflite/tflite.dart';
+import 'package:uuid/uuid.dart';
+
+var uuid = Uuid();
 
 extension SeamCarving on imageLib.Image {
   imageLib.Image carveSeam(
@@ -94,7 +97,13 @@ class ResizeableImage {
   int numSeamsAltered;
   int numSeamsToBeAltered;
   int progressInd;
-  int numRecordedSteps = 30;
+  int numRecordedSteps;
+
+  Function setProgress;
+
+  String currentProgressImagePath;
+
+  SendPort progressSendPort;
 
   ResizeableImage(
     File imageFile, {
@@ -102,6 +111,7 @@ class ResizeableImage {
     this.speedup: 1,
     this.debug: false,
     this.video: false,
+    this.numRecordedSteps: 50,
   }) {
     imagePath = imageFile.path;
     image = imageLib.decodeImage(imageFile.readAsBytesSync());
@@ -110,11 +120,18 @@ class ResizeableImage {
     originalSize = image.size();
   }
 
-  Future<void> init() async {
+  Future<void> init(Directory tempDir) async {
+    if (initialized) {
+      return;
+    }
+
     initialized = true;
 
+    this.tempDir = tempDir;
+
     Stopwatch stopwatch = new Stopwatch()..start();
-    tempDir = await getTemporaryDirectory();
+    // tempDir = await getTemporaryDirectory();
+    // tempDir = tempdir;
 
     Matrix2D<Uint32List> imageMatrix = Matrix2D.fromImage(image);
     assert(imageMatrix.length == width * height);
@@ -145,7 +162,6 @@ class ResizeableImage {
       );
       // saveImageMatrix(imageMatrix, tempDir.path + '/original.png')
     }
-
     imageMatrixCache = MatrixCache(matrix: imageMatrix);
 
     Matrix2D<Uint8List> energyMatrix = forwardEnergy(image);
@@ -169,6 +185,8 @@ class ResizeableImage {
   Future updateEnergyMatrixWithBeingDetection_(
     Matrix2D<Uint8List> energyMatrix,
   ) async {
+    assert(imagePath != null);
+
     var result = await Tflite.runSegmentationOnImage(
       path: imagePath,
       // labelColors: [...], // defaults to https://github.com/shaqian/flutter_tflite/blob/master/lib/tflite.dart#L219
@@ -176,19 +194,30 @@ class ResizeableImage {
     );
 
     String segmentationPath = tempDir.path + '/segmentation.png';
-    saveImageFromData(
-      257,
-      257,
-      Uint8List.fromList(result).buffer.asUint32List(),
-      segmentationPath,
-      saveToGallery: false,
-    );
+    // saveImageFromData(
+    //   257,
+    //   257,
+    //   Uint8List.fromList(result).buffer.asUint32List(),
+    //   segmentationPath,
+    //   saveToGallery: true,
+    // );
 
     // await Tflite.close();
 
-    File segmentationFile = File(segmentationPath);
-    imageLib.Image segmentationImage =
-        imageLib.decodeImage(await segmentationFile.readAsBytes());
+    // File segmentationFile = File(segmentationPath);
+
+    // imageLib.Image segmentationImage =
+    //     imageLib.decodeImage(await segmentationFile.readAsBytes());
+
+    imageLib.Image segmentationImage = imageLib.Image.fromBytes(
+      257,
+      257,
+      Uint8List.fromList(result).buffer.asUint32List(),
+    );
+
+    if (debug) {
+      segmentationImage.saveInGallery(segmentationPath);
+    }
 
     imageLib.Image resizedSegmentationImage = imageLib.copyResize(
       segmentationImage,
@@ -239,8 +268,8 @@ class ResizeableImage {
     // return energyMatrix;
   }
 
-  Future atRatio(
-      double widthToHeightRatio, double carvingDegree, String pathname) async {
+  Future<String> atRatio(
+      double widthToHeightRatio, double carvingDegree) async {
     // double targetWPH = width / height;
 
     assert(widthToHeightRatio >= 0 && widthToHeightRatio <= 1);
@@ -283,13 +312,13 @@ class ResizeableImage {
     // print(sizeDelta);
     // print(newSize);
 
-    await atSize(newSize, pathname);
+    return atSize(newSize);
   }
 
-  Future atSize(Size2D size, savePath, {int speedup: 1}) async {
-    if (!initialized) {
-      await init();
-    }
+  Future<String> atSize(Size2D size, {int speedup: 1}) async {
+    // if (!initialized) {
+    //   await init();
+    // }
 
     Stopwatch stopwatch = new Stopwatch()..start();
 
@@ -298,6 +327,7 @@ class ResizeableImage {
     numSeamsAltered = 0;
     numSeamsToBeAltered = deltaSize.total();
     progressInd = 0;
+    currentProgressImagePath = null;
 
     print("total seams to be altered: $numSeamsToBeAltered");
 
@@ -331,10 +361,11 @@ class ResizeableImage {
       imageMatrix = await _atBiggerSize(imageMatrix, energyMatrix, biggerSize);
     }
 
+    var resizedImagePath = tempDir.path + '/${uuid.v1()}.png';
     saveImageMatrix(
       imageMatrix,
-      tempDir.path + '/resized 1.png',
-      saveToGallery: true,
+      resizedImagePath,
+      saveToGallery: false,
     );
 
     debugPrint('Size change completed in ${stopwatch.elapsed}');
@@ -342,6 +373,10 @@ class ResizeableImage {
     if (video) {
       await createVideo();
     }
+
+    // File(tempDir.path + '/progress$progressInd.png').deleteSync();
+
+    return resizedImagePath;
   }
 
   Future<Matrix2D<Uint32List>> _atBiggerSize(
@@ -448,8 +483,7 @@ class ResizeableImage {
           List<int> indicesToFill = vars[1];
           fillImageMatrixIndicesByInterpolation(imageMatrix, indicesToFill);
 
-          numSeamsAltered++;
-          saveProgress(imageMatrix, axis);
+          updateProgress(imageMatrix, axis);
 
           energyMatrix = energyMatrix.withExpandedAndInterpolatedSeams(seams);
 
@@ -595,8 +629,7 @@ class ResizeableImage {
           minEnergyMatrix = minEnergyMatrix.withCarvedSeam(seam, ordered: true);
           directionMatrix = directionMatrix.withCarvedSeam(seam, ordered: true);
 
-          numSeamsAltered++;
-          saveProgress(imageMatrix, axis);
+          updateProgress(imageMatrix, axis);
 
           lastSeams.add(seam);
           numCarved++;
@@ -652,9 +685,22 @@ class ResizeableImage {
       }
 
       // saveImageFromImageMatrix(imageMatrix, path)
+
+      // if (!video && progressInd != 0) {
+      //   File(tempDir.path + '/progress${progressInd -1}.png').deleteSync();
+      // }
+
+      var path = tempDir.path + '/progress$progressInd.png';
+
+      var file = File(path);
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
+
+      currentProgressImagePath = path;
       saveImageMatrix(
         imageMatrix,
-        tempDir.path + '/progress$progressInd.png',
+        currentProgressImagePath,
         saveToGallery: false,
       );
 
@@ -665,14 +711,29 @@ class ResizeableImage {
     }
   }
 
-  Future<void> createVideo() async {
+  void updateProgress(imageMatrix, axis, {int n = 1}) {
+    numSeamsAltered += n;
+    saveProgress(imageMatrix, axis);
+
+    if (progressSendPort != null) {
+      // print('sending');
+      double progress = numSeamsAltered / numSeamsToBeAltered;
+
+      progressSendPort.send({
+        'progress': progress,
+        'currentProgressImagePath': currentProgressImagePath,
+        'done': numSeamsAltered == numSeamsToBeAltered,
+      });
+    }
+    // currentProgressImagePath
+  }
+
+  Future<void> createVideo({int duration: 2}) async {
     // var listSync = Directory(tempDir.path).listSync();
     // print(listSync);
     // return;
 
     Stopwatch stopwatch = new Stopwatch()..start();
-
-    int duration = 2;
 
     await videoFromImageFolder(
       tempDir.path,

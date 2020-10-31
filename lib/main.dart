@@ -22,56 +22,70 @@ import 'package:vector_math/vector_math.dart';
 import 'package:binary/binary.dart';
 import 'package:tflite/tflite.dart';
 
-void main() => runApp(new MaterialApp(home: MyApp()));
+ResizeableImage resizeableImage;
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(new MaterialApp(home: MyApp()));
+}
 
 class MyApp extends StatefulWidget {
   @override
   _MyAppState createState() => new _MyAppState();
 }
 
-//var sobelFilterListX = [1, 0, -1, 2, 0, -2, 1, 0, -1];
-var sobelFilterListX = [0, 1, 0, 1, -4, 1, 0, 1, 0];
-//var sobelFilterListY = [-1, -1, -1, -1, 8, -1, -1, -1, -1];
-var sobelFilterListY = [1, 2, 1, 0, 0, 0, -1, -2, -1];
-
-// @todo next step: compare existsing with photofilter convolutions
-
-ConvolutionKernel sobelKernelX = new ConvolutionKernel(sobelFilterListX);
-
-ImageFilter edgeDetectX = new ImageFilter(name: "X edge detect")
-  ..subFilters.add(ConvolutionSubFilter.fromKernel(sobelKernelX));
-
-ConvolutionKernel sobelKernelY = new ConvolutionKernel(sobelFilterListY);
-
-ImageFilter edgeDetectY = new ImageFilter(name: "Y edge detect")
-  ..subFilters.add(ConvolutionSubFilter.fromKernel(sobelKernelY));
-
-List<Filter> filters = [edgeDetectX, edgeDetectY];
-
-//edgeDetectLR.subFilters.add(ConvolutionSubFilter.fromKernel(coloredEdgeDetectionKernel))
-//new ImageFilter(name: "Colored Edge Detection")
-//..subFilters
-//    .add(ConvolutionSubFilter.fromKernel(coloredEdgeDetectionKernel))
-
-//Directory tempDir = await getTemporaryDirectory();
-//String tempPath = tempDir.path;
-
 final picker = ImagePicker();
 
 class _MyAppState extends State<MyApp> {
   String fileName;
-  File imageFile;
+  File originalImageFile;
+  File progressImageFile;
+  File resizedImageFile;
   var ci;
   List<int> edgesY;
   List<int> edgesX;
 
+  Future<String> resizeImageFuture;
+
+  // ResizeableImage resizeableImage;
+
+  bool initialised = false;
+
   Directory tempDir;
+
+  double _progress;
+
+  // get
+
+  Future init() async {
+    String res = await Tflite.loadModel(
+        model: "assets/models/lite-model_deeplabv3_1_metadata_2.tflite",
+        numThreads: 4,
+        // defaults to 1
+        isAsset: true,
+        // defaults to true, set to false to load resources outside assets
+        useGpuDelegate:
+            false // defaults to false, set to true to use GPU delegate
+        );
+
+    tempDir = await getTemporaryDirectory();
+
+    assert(res == 'success');
+    // @todo: handle failure ^
+  }
 
   Future pickImage(context) async {
     await Permission.storage.request();
 
-    if (tempDir == null) {
-      tempDir = await getTemporaryDirectory();
+    progressImageFile = null;
+    originalImageFile = null;
+    resizeImageFuture = null;
+    // if (tempDir == null) {
+    //   tempDir = await getTemporaryDirectory();
+    // }
+
+    if (!initialised) {
+      init();
     }
 
     PickedFile pickedImageFile = await picker.getImage(
@@ -84,17 +98,24 @@ class _MyAppState extends State<MyApp> {
       // maxWidth: 720,
     );
 
-
     // pickedImageFile.readAsBytes()
     // imageLib.Image a = imageLib.decodeImage(await pickedImageFile.readAsBytes());
-    imageFile = File(pickedImageFile.path);
 
-    print(tempDir);
-
+    originalImageFile = File(pickedImageFile.path);
     setState(() {
-      imageFile = imageFile;
+      originalImageFile = originalImageFile;
     });
 
+    resizeableImage = ResizeableImage(
+      originalImageFile,
+      beingProtection: false,
+      // beingProtection: true,
+      debug: false,
+      // debug: true,
+      speedup: 1,
+      video: false,
+      // video: true,
+    );
     // var storagePermission = await Permission.storage.status;
     // print(storagePermission);
 //
@@ -108,259 +129,148 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return new Scaffold(
-      appBar: new AppBar(
-        title: new Text('Photo Filter Example'),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Photo Filter Example'),
       ),
       body: Center(
-        child:
-//      new Container(
-//          child: imageFile == null
-//              ? Center(
-//                  child: new Text('No image selected.'),
-//                )
-//              : convolveAndDisplay(imageFile),
-            new Column(
+        child: Column(
           children: [
-            new Container(
-              child: imageFile == null
-                  ? Center(
-                      child: new Text('No image selected.'),
-                    )
-                  // : convolveAndDisplay(imageFile),
-                  : new Text('done'),
+            Container(
+              child: resizeImageFuture == null
+                  ? Center(child: Text('No image selected.'))
+                  // ? Center(child: CircularProgressIndicator())
+                  // : Text('done'),
+                  : FutureBuilder(
+                      future: resizeImageFuture,
+                      // future: compute(convolveAndDisplay, imageFile),
+                      // future: compute( sleep, const Duration(seconds:5)),
+                      builder: (context, snapshot) {
+                        switch (snapshot.connectionState) {
+                          case ConnectionState.none:
+                          case ConnectionState.active:
+                          case ConnectionState.waiting:
+                            if (progressImageFile == null) {
+                              return Image.file(
+                                originalImageFile,
+                                gaplessPlayback: true,
+                              );
+                            }
+
+                            return Image.file(
+                              progressImageFile,
+                              gaplessPlayback: true,
+                            );
+
+                          // return Center(child: CircularProgressIndicator());
+                          case ConnectionState.done:
+                            // print("done apparently");
+                            // print(snapshot.data);
+                            // assert(snapshot.hasData);
+                            if (snapshot.hasError)
+                              return Center(
+                                  child: Text('Error: ${snapshot.error}'));
+                            resizedImageFile = File(snapshot.data);
+                            return Image.file(
+                              resizedImageFile,
+                              gaplessPlayback: true,
+                            );
+                        }
+                        return null;
+                      },
+                    ),
+
+              // : Text('done'),
             ),
-            new Container(
-              child: ci == null
-                  ? Center(
-                      child: new Text('No image selected'),
-                    )
-//                  : Image.memory(imageLib.encodePng(ci)),
-                  : new Text('done'),
-//                  : Image.file(ci),
-            ),
+            // resizeImageFuture == null
+            //     ? null
+            //     : LinearProgressIndicator(value: _progress, minHeight: 20),
+            Offstage(
+              offstage: resizeImageFuture == null || _progress == 1,
+              child: LinearProgressIndicator(value: _progress, minHeight: 20),
+            )
           ],
         ),
       ),
-      floatingActionButton: new FloatingActionButton(
+      floatingActionButton: FloatingActionButton(
         onPressed: () async => {
           await pickImage(context),
-          convolveAndDisplay(imageFile),
+          resizeImageFuture = resizeImage()
+          // convolveAndDisplay(imageFile),
         },
         tooltip: 'Pick Image',
-        child: new Icon(Icons.add_photo_alternate),
+        child: Icon(Icons.add_photo_alternate),
       ),
     );
   }
 
-  convolveAndDisplay(File imageFile) async {
-    // print(1.0.ceil());
+  Future<String> resizeImage() async {
+    ReceivePort progressPort = ReceivePort();
+    ReceivePort pathPort = ReceivePort();
+    // Stopwatch totalStopwatch = new Stopwatch()..start();
 
-    String res = await Tflite.loadModel(
-        model: "assets/models/lite-model_deeplabv3_1_metadata_2.tflite",
-        numThreads: 4,
-        // defaults to 1
-        isAsset: true,
-        // defaults to true, set to false to load resources outside assets
-        useGpuDelegate:
-            false // defaults to false, set to true to use GPU delegate
-        );
+    resizeableImage.progressSendPort = progressPort.sendPort;
 
-    // print(res);
-    assert(res == 'success');
+    Map params = {
+      'resizeableImage': resizeableImage,
+      'scale': 1.0,
+      'ratio': 0.75,
+      // 'progressSendPort': progressPort.sendPort,
+      'pathSendPort': pathPort.sendPort,
+      'tempDir': tempDir,
+    };
 
-    ResizeableImage resizeableImage = ResizeableImage(
-      imageFile,
-      beingProtection: false,
-      debug: false,
-      speedup: 1,
-      video:true,
-    );
+    Isolate isolate = await Isolate.spawn(resizeImageIsolate, params);
+    // compute(resizeImageIsolate, params);
 
-    String pathName = tempDir.path + '/cropped.png';
+    String path;
 
-    Stopwatch totalStopwatch = new Stopwatch()..start();
+    bool done = false;
 
-    await resizeableImage.init();
-
-    await resizeableImage.atRatio(
-      16/16,
-      0.75,
-      // 0,
-      // 0.5,
-      pathName,
-    );
-
-
-    // await resizeableImage.atSize(
-    //   Size2D(810, 1110),
-    //   // Size2D(830, 1080),
-    //   pathName,
-    //   speedup: 1,
-    // );
-
-    return Image.file(imageFile);
-    // return Text('asdas');
+    // while (!done) {
+    //   progressPort.listen((update) {
+    //     done = update['done'];
     //
-    // print('completed in ${totalStopwatch.elapsed}');
-    // print('Saved to $pathName');
-
-    // Int32List l1 = Int32List.fromList([1,2,3,4,5,6,7]);
-    // Int32List l2 = Int32List.fromList([1,2,3,4,5,6,7].reversed.toList());
-    // print(l1);
-    // l1.setRange(1, 3, l2, 1);
-    // print(l1);
-
-    // List<List<int>> randomSeam = [];
-    // for (int y = 0; y < image.height; y++) {
-    //   randomSeam.add([y, randInt(0, image.width)]);
-    // }
-    // Matrix2D imageMatrix2d = Matrix2D.fromImage(image);
+    //     _progress = update['progress'];
+    //     String currentProgressImagePath = update['currentProgressImagePath'];
+    //     progressImageFile = File(currentProgressImagePath);
     //
-    // List<Future> carvingFutures = [];
-    // Matrix2D im1 = imageMatrix2d.clone();
-    // Matrix2D im2 = imageMatrix2d.clone();
-    // Matrix2D im3 = imageMatrix2d.clone();
-    // Matrix2D im4 = imageMatrix2d.clone();
-    //
-    //
-    // carvingFutures.add(Isolate.spawn(carveSeam, im1, randomSeam));
-
-    // List<List<int>> randomSeam = [];
-    // for (int y = 0; y < image.height; y++) {
-    //   randomSeam.add([y, randInt(0, image.width)]);
-    // }
-    // List<List<List<int>>> matrixImage = pixelMatrixFromImage(image);
-    // Matrix2D imageMatrix2d = Matrix2D.fromImage(image);
-    // for (int _ = 0; _ < 10; _++) {
-    //   naiveMatrixBased(matrixImage, randomSeam);
-    //   imageBased(image, randomSeam);
-    //   matrix2DBased(imageMatrix2d, randomSeam);
-    //   print(_);
-    //   if (_ % 10 == 0) {
-    //     print(_);
-    //   }
+    //   });
     // }
 
-    // matrixToGalleryImage(pixelMatrix, pixelARGBChannelsToARGBBytes, origName);
+    await for (var update in progressPort) {
+      // done = update['done'];
 
-//    List<Future<List<int>>> convolutionFutures = [];
-//     List<Future<imageLib.Image>> convolutionFutures = [];
-//
-//     List<String> convolutedFileNames = [];
-//
-//     for (var filter in filters) {
-//       var fileName = filter.name + '.png';
-//       convolutionFutures.add(compute(applyFilterAlt, <String, dynamic>{
-//         "filter": filter,
-//         "image": image,
-//         "filename": fileName,
-//       }));
-//       convolutedFileNames.add(fileName);
-//     }
+      setState(() {
+        _progress = update['progress'];
 
-    // return FutureBuilder(
-    //   future: Future.wait(convolutionFutures),
-    //   builder: (BuildContext context, AsyncSnapshot<List<dynamic>> snapshot) {
-    //     switch (snapshot.connectionState) {
-    //       case ConnectionState.none:
-    //       case ConnectionState.active:
-    //       case ConnectionState.waiting:
-    //         return Center(child: CircularProgressIndicator());
-    //       case ConnectionState.done:
-    //         if (snapshot.hasError)
-    //           return Center(child: Text('Error: ${snapshot.error}'));
-    //
-    //         // ResizeableImage resizeableImage = ResizeableImage(image);
-    //         //
-    //         // String pathName = tempDir.path + '/cropped.png';
-    //         //
-    //         // Stopwatch totalStopwatch = new Stopwatch()..start();
-    //         //
-    //         // resizeableImage.atSize(
-    //         //   Size2D(image.height, image.width - 200),
-    //         //   pathName,
-    //         // );
-    //         //
-    //         // resizeableImage.atSize(
-    //         //   Size2D(image.height, image.width - 210),
-    //         //   pathName,
-    //         // );
-    //         //
-    //         // resizeableImage.atSize(
-    //         //   Size2D(image.height, image.width - 190),
-    //         //   pathName,
-    //         // );
-    //         //
-    //         // print('completed in ${totalStopwatch.elapsed}');
-    //
-    //         // matrixToGalleryImage(
-    //         //     pixelMatrix, pixelARGBChannelsToARGBBytes, origName);
-    //
-    //         // var dirImagePath = tempDir.path + '/dirs.png';
-    //         // visualizeDirs(dirs, dirImagePath);
-    //
-    //         return Image.file(imageFile);
-    //     }
-    //     return null; // unreachable
-    //   },
-    // );
+        String currentProgressImagePath = update['currentProgressImagePath'];
+        if (currentProgressImagePath != null) {
+          progressImageFile = File(currentProgressImagePath);
+        }
+      });
+
+      if (update['done']) {
+        break;
+      }
+    }
+
+    path = await pathPort.first;
+
+    return path;
   }
+}
 
-// imageLib.Image imageBased(
-//   imageLib.Image imageBytes,
-//   List<List<int>> randomSeam,
-// ) {
-//   imageLib.Image imageBytesClone = imageBytes.clone();
-//   imageLib.Image newim =
-//       imageBytesClone.carveSeam(randomSeam, ordered: false);
-//   return newim;
-// }
-//
-// List<List<List<int>>> naiveMatrixBased(
-//   List<List<List<int>>> matrixImage,
-//   List<List<int>> randomSeam,
-// ) {
-//   List<List<List<int>>> matrixImageCopy = matrixCopy3D(matrixImage);
-//   carveSeamFromMatrix3D_(matrixImageCopy, randomSeam);
-//   return matrixImageCopy;
-// }
-//
-// Matrix2D matrix2DBased(
-//   Matrix2D matrixImage,
-//   List<List<int>> randomSeam,
-// ) {
-//   Matrix2D matrixImageCopy = matrixImage.clone();
-//   matrixImageCopy.carveSeam(randomSeam);
-//   return matrixImageCopy;
-// }
+Future resizeImageIsolate(Map params) async {
+  await params['resizeableImage'].init(params['tempDir']);
 
-  void rotationTesting() {
-    Matrix2D<Uint8List> m = Matrix2D.fromData(3, 2, [1, 2, 3, 4, 5, 6]);
-    print(m);
-    print('----');
-    m.pseudoRotateRight();
-    print(m);
-    print('----');
-    m.pseudoRotateLeft();
-    m.pseudoRotateLeft();
-    print(m);
-    print('===');
-    m.pseudoRotateRight();
+  String path = await params['resizeableImage'].atRatio(
+    params['scale'],
+    params['ratio'],
+    // 0,
+    // 0.5,
+  );
 
-    Matrix2D<Uint8List> mr = m.rotated(1);
-
-    print(mr);
-    print('----');
-
-    var carved = mr.withCarvedSeam([
-      [0, 1],
-      [1, 0],
-      [2, 1]
-    ]);
-
-    print(carved.toString());
-    print('----');
-    print(carved.rotated(-1));
-  }
+  params['pathSendPort'].send(path);
+  return;
 }
