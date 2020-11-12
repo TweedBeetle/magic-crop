@@ -752,6 +752,8 @@ class Matrix2D<T extends List<int>> implements Sizeable2D {
 
   int seamsMax(List<List<List<int>>> seams) =>
       seams.map(seamMax).reduce((a, b) => a > b ? a : b);
+  int seamsMin(List<List<List<int>>> seams) =>
+      seams.map(seamMin).reduce((a, b) => a > b ? a : b);
 
   seamsSum(List<List<List<int>>> seams) => seams
       .map((seam) => seam
@@ -769,6 +771,10 @@ class Matrix2D<T extends List<int>> implements Sizeable2D {
   int seamMax(List<List<int>> seam) => seam
       .map((coordYX) => data[index(coordYX[1], coordYX[0])])
       .reduce((a, b) => a > b ? a : b);
+
+  int seamMin(List<List<int>> seam) => seam
+      .map((coordYX) => data[index(coordYX[1], coordYX[0])])
+      .reduce((a, b) => a < b ? a : b);
 
   Matrix2D<T> meanWith(Matrix2D<T> other) {
     assert(width == other.width);

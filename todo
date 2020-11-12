@@ -1,7 +1,5 @@
-protect humans:
-https://www.tensorflow.org/lite/models/segmentation/overview
-
-threading for speedup?
-https://medium.com/flutterdevs/threading-in-flutter-e5b84c7d8d31
-
-https://pub.dev/packages/image_cropper
+fix aspect ratio row
+add screensaver ratio
+add custom ratio dialog
+fix image rotation bug
+enable being detection (do in main thread though isolate)

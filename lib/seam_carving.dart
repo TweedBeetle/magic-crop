@@ -62,7 +62,7 @@ extension SeamCarving on imageLib.Image {
   }
 
   void save(String path) {
-    new File(path).writeAsBytesSync(imageLib.encodePng(this, level: 0));
+    File(path).writeAsBytesSync(imageLib.encodePng(this, level: 0));
   }
 
 // imageLib.Image fromMatrix(Matrix2D matrix) {
@@ -99,6 +99,8 @@ class ResizeableImage {
   int progressInd;
   int numRecordedSteps;
 
+  bool updatedProgressImage;
+
   Function setProgress;
 
   String currentProgressImagePath;
@@ -111,7 +113,7 @@ class ResizeableImage {
     this.speedup: 1,
     this.debug: false,
     this.video: false,
-    this.numRecordedSteps: 50,
+    this.numRecordedSteps: 75,
   }) {
     imagePath = imageFile.path;
     image = imageLib.decodeImage(imageFile.readAsBytesSync());
@@ -130,31 +132,11 @@ class ResizeableImage {
     this.tempDir = tempDir;
 
     Stopwatch stopwatch = new Stopwatch()..start();
-    // tempDir = await getTemporaryDirectory();
-    // tempDir = tempdir;
 
     Matrix2D<Uint32List> imageMatrix = Matrix2D.fromImage(image);
     assert(imageMatrix.length == width * height);
 
-    // Stopwatch stopwatcha = new Stopwatch()..start();
-    // count().take(500).forEach((element) {
-    //   saveImageMatrix(imageMatrix, tempDir.path + '/assdssasd$element.png');
-    // });
-    // debugPrint('saveImageMatrix in ${stopwatcha.elapsed}');
-    //
-    // Stopwatch stopwatchb = new Stopwatch()..start();
-    // count().take(500).forEach((element) {
-    //   saveImageMatrix(imageMatrix, tempDir.path + '/asssssdasd$element.png');
-    // });
-    // debugPrint('saveImageFromImageMatrix in ${stopwatchb.elapsed}');
-
-    // print([imageMatrix.height, imageMatrix.width]);
-    // print([height, width]);
-
     if (debug) {
-      // imageMatrix
-      //     .toImage(pixelDataToRGBA)
-      //     .saveInGallery(tempDir.path + '/original.png');
       saveImageMatrix(
         imageMatrix,
         tempDir.path + '/original.png',
@@ -194,6 +176,7 @@ class ResizeableImage {
     );
 
     String segmentationPath = tempDir.path + '/segmentation.png';
+
     // saveImageFromData(
     //   257,
     //   257,
@@ -225,15 +208,6 @@ class ResizeableImage {
       height: height,
       interpolation: imageLib.Interpolation.nearest,
     );
-
-    // String resizedSegmentationPath = tempDir.path + '/resized_segmentation.png';
-    // saveImageFromData(
-    //   width,
-    //   height,
-    //   resizedSegmentationImage.data,
-    //   resizedSegmentationPath,
-    //   saveToGallery: true,
-    // );
 
     Matrix2D<Uint32List> segmentationMatrix =
         Matrix2D.fromImage(resizedSegmentationImage);
@@ -269,16 +243,17 @@ class ResizeableImage {
   }
 
   Future<String> atRatio(
-      double widthToHeightRatio, double carvingDegree) async {
+      double widthToHeightRatio, double squeezeToStretchRatio) async {
     // double targetWPH = width / height;
 
-    assert(widthToHeightRatio >= 0 && widthToHeightRatio <= 1);
+    // assert(widthToHeightRatio >= 0 && widthToHeightRatio <= 1);
+    assert(widthToHeightRatio >= 0);
 
     double currentWTH = this.width / this.height;
 
     if (widthToHeightRatio > currentWTH) {
       print('flipping carvingDegree');
-      carvingDegree = 1 - carvingDegree;
+      squeezeToStretchRatio = 1 - squeezeToStretchRatio;
     }
 
     https: //www.wolframalpha.com/input/?i=x+%3D+%28e+%2F+j%29+*+%28h+%2B+x%2Fs%29+-+w+solve+for+x
@@ -291,16 +266,16 @@ class ResizeableImage {
     // https://www.wolframalpha.com/input/?i=x+%3D+((w+%2B+x)+%2F+(h+%2B+(x+%2F+s)))+*+(h+%2B+x%2Fs)+-+w+solve+for+x
 
     double delta = (height * widthToHeightRatio - width) /
-        (-widthToHeightRatio * carvingDegree +
+        (-widthToHeightRatio * squeezeToStretchRatio +
             widthToHeightRatio +
-            carvingDegree);
+            squeezeToStretchRatio);
 
     // https://www.wolframalpha.com/input/?i=x+%3D+((w+%2B+x)+%2F+(h+%2B+(x+%2F+s)))+*+(h+%2B+x%2Fs)+-+w+solve+for+x
     // double delta = (height * widthToHeightRatio - width) /
     //     (widthToHeightRatio * (carvingDegree - 1) + carvingDegree);
 
-    int widthDelta = (carvingDegree * delta).round();
-    int heightDelta = -1 * ((1 - carvingDegree) * delta).round();
+    int widthDelta = (squeezeToStretchRatio * delta).round();
+    int heightDelta = -1 * ((1 - squeezeToStretchRatio) * delta).round();
 
     // int widthDelta = ().round();
 
@@ -324,8 +299,8 @@ class ResizeableImage {
 
     Size2D deltaSize = size - originalSize;
 
-    numSeamsAltered = 0;
     numSeamsToBeAltered = deltaSize.total();
+    numSeamsAltered = 0;
     progressInd = 0;
     currentProgressImagePath = null;
 
@@ -345,11 +320,11 @@ class ResizeableImage {
 
     int totalDeltaToBeGrown = smallerSize.totalDelta(biggerSize);
 
-    print(totalDeltaToBeShrunk);
-    print(deltaSize);
-    print(smallerSize);
-    print(biggerSize);
-    print(totalDeltaToBeGrown);
+    // print(totalDeltaToBeShrunk);
+    // print(deltaSize);
+    // print(smallerSize);
+    // print(biggerSize);
+    // print(totalDeltaToBeGrown);
 
     var vars = await _atSmallerSize(smallerSize);
     Matrix2D<Uint32List> imageMatrix = vars[0];
@@ -469,14 +444,17 @@ class ResizeableImage {
 
           var seams = [seam];
 
-          int penalty = energyMatrix.seamsMax(seams);
+          // int penalty = energyMatrix.seamsMax(seams);
+          // int penalty = energyMatrix.seamsMin(seams);
           // int penalty = energyMatrix.seamsMean(seams);
           // int penalty =
           //     (energyMatrix.seamsMean(seams) + energyMatrix.seamsMax(seams)) ~/
           //         2;
           // int penalty = 255;
-          // int penalty = 1;
+          int penalty = 10;
           // print(penalty);
+
+          penalty = max(penalty, 1);
 
           var vars = imageMatrix.withExpandedSeams(seams);
           imageMatrix = vars[0];
@@ -544,7 +522,7 @@ class ResizeableImage {
 
     if (debug) {
       saveEnergyMatrixImageToGallery(
-          energyMatrix, tempDir.path + '/energy pre.png');
+          energyMatrix, tempDir.path + '/energy pre shrink.png');
     }
 
     var vals;
@@ -656,7 +634,7 @@ class ResizeableImage {
 
       if (axis == deltaAxis.y) {
         imageMatrix = imageMatrix.rotated(-1);
-        // energyMatrix = energyMatrix.rotated(-1);
+        energyMatrix = energyMatrix.rotated(-1);
         // minEnergyMatrix = minEnergyMatrix.rotated(-1);
         // directionMatrix = directionMatrix.rotated(-1);
       }
@@ -670,44 +648,52 @@ class ResizeableImage {
   }
 
   void saveProgress(Matrix2D<Uint32List> _imageMatrix, deltaAxis axis) {
-    numRecordedSteps = min(numRecordedSteps, numSeamsToBeAltered);
-
     int delta = numSeamsToBeAltered ~/ numRecordedSteps;
 
     if (numSeamsAltered == 0 ||
         numSeamsAltered == numSeamsToBeAltered ||
         numSeamsAltered % delta == 0) {
-      Matrix2D<Uint32List> imageMatrix;
-      if (axis == deltaAxis.y) {
-        imageMatrix = _imageMatrix.rotated(-1);
-      } else {
-        imageMatrix = _imageMatrix;
-      }
+      // Matrix2D<Uint32List> imageMatrix;
+      // if (axis == deltaAxis.y) {
+      //   imageMatrix = _imageMatrix.rotated(-1);
+      // } else {
+      //   imageMatrix = _imageMatrix;
+      // }
+
+      updatedProgressImage = true;
 
       // saveImageFromImageMatrix(imageMatrix, path)
 
       // if (!video && progressInd != 0) {
-      //   File(tempDir.path + '/progress${progressInd -1}.png').deleteSync();
+      //   File(tempDir.path + '/progress${progressInd - 1}.png').deleteSync();
       // }
 
       var path = tempDir.path + '/progress$progressInd.png';
 
-      var file = File(path);
-      if (file.existsSync()) {
-        file.deleteSync();
-      }
+      // var file = File(path);
+      // if (file.existsSync()) {
+      //   // print(path);
+      //   file.deleteSync();
+      // } else {
+      //   print("$path doesn't exist");
+      // }
 
       currentProgressImagePath = path;
-      saveImageMatrix(
-        imageMatrix,
-        currentProgressImagePath,
-        saveToGallery: false,
-      );
+
+      // print(currentProgressImagePath);
+
+      // saveImageMatrix(
+      //   imageMatrix,
+      //   currentProgressImagePath,
+      //   saveToGallery: false,
+      // );
 
       progressInd++;
 
       // print('saved to ${tempDir.path + '/progress$progressInd.png'}');
       // print(Directory(tempDir.path).listSync(recursive: true));
+    } else {
+      updatedProgressImage = false;
     }
   }
 
@@ -719,9 +705,36 @@ class ResizeableImage {
       // print('sending');
       double progress = numSeamsAltered / numSeamsToBeAltered;
 
+      // decodeImageFromPixels(
+      //     imageMatrix.data.buffer.asUint8List(0, imageMatrix.data.length * 4),
+      //     imageMatrix.width,
+      //     imageMatrix.height,
+      //     PixelFormat.rgba8888,
+      //     (Image image) => {
+      //           progressSendPort.send({
+      //             'progress': progress,
+      //             'currentProgressImagePath': currentProgressImagePath,
+      //             'currentProgressImage': image,
+      //             'done': numSeamsAltered == numSeamsToBeAltered,
+      //           })
+      //         });
+
       progressSendPort.send({
         'progress': progress,
         'currentProgressImagePath': currentProgressImagePath,
+        'currentProgressImageMatrix': updatedProgressImage
+            ? axis == deltaAxis.y
+                ? imageMatrix.rotated(-1)
+                : imageMatrix
+            : null,
+        'updatedProgressImage': updatedProgressImage,
+        // 'currentProgressImageData': {
+        //   'data': imageMatrix.data.buffer
+        //       .asUint8List(0, imageMatrix.data.length * 4),
+        //   'width': imageMatrix.width,
+        //   'height': imageMatrix.height,
+        //
+        // },
         'done': numSeamsAltered == numSeamsToBeAltered,
       });
     }
@@ -1437,8 +1450,4 @@ void saveImageFromData(
       };
     },
   );
-}
-
-void carveIsolateHelper(vars) {
-  vars[2].send(vars[0].withCarvedSeam(vars[1], ordered: true));
 }
