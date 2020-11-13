@@ -11,6 +11,10 @@ import 'package:image/image.dart' as img;
 
 Future<File> fixExifRotation(String imagePath) async {
   final originalFile = File(imagePath);
+
+  // await FlutterExifRotation.rotateImage(path: image.path);
+
+
   List<int> imageBytes = await originalFile.readAsBytes();
 
   final originalImage = img.decodeImage(imageBytes);

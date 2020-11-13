@@ -1,5 +1,6 @@
 import 'package:esys_flutter_share/esys_flutter_share.dart';
 import 'package:flutter/services.dart';
+import 'package:tflite/tflite.dart';
 import 'package:tip_dialog/tip_dialog.dart';
 import 'dart:io';
 import 'dart:isolate';
@@ -17,15 +18,14 @@ import '../custom_icons_icons.dart';
 import '../matrix.dart';
 import '../seam_carving.dart';
 
-
 List<List> aspectRatios = [
   [1, 1],
   [16, 9],
   // [9, 16],
   [4, 3],
   // [3, 4],
-  [2, 1],
-  [1, 2]
+  // [2, 1],
+  // [1, 2]
 ];
 
 class CropScreen extends StatefulWidget {
@@ -38,7 +38,9 @@ class CropScreen extends StatefulWidget {
 }
 
 Future resizeImageIsolate(Map params) async {
-  await params['resizeableImage'].init(params['tempDir']);
+  await params['resizeableImage'].init(params['tempDir'], params['segmentationResult']);
+
+  // params['resizeableImage'].segmentationResult = params['segmentationResult'];
 
   String path = await params['resizeableImage'].atRatio(
     params['scale'],
@@ -71,8 +73,8 @@ class _CropScreenState extends State<CropScreen> {
   _CropScreenState(this.originalImageFile) {
     resizeableImage = ResizeableImage(
       originalImageFile,
-      beingProtection: false,
-      // beingProtection: true,
+      // beingProtection: false,
+      beingProtection: true,
       debug: false,
       // debug: true,
       speedup: 1,
@@ -98,10 +100,27 @@ class _CropScreenState extends State<CropScreen> {
   Future<String> resizeImage() async {
     ReceivePort progressPort = ReceivePort();
     ReceivePort pathPort = ReceivePort();
+
+    ReceivePort segmentationParamPort = ReceivePort();
+    ReceivePort segmentationResultPort = ReceivePort();
+
     tempDir = await getTemporaryDirectory();
     // Stopwatch totalStopwatch = new Stopwatch()..start();
 
+    // @todo: move into init()
     resizeableImage.progressSendPort = progressPort.sendPort;
+    resizeableImage.segmentationParamSendPort = segmentationParamPort.sendPort;
+    // resizeableImage.segmentationResultPort = segmentationResultPort;
+
+    Uint8List segmentationResult;
+
+    if (resizeableImage.beingProtection) {
+      segmentationResult = await Tflite.runSegmentationOnImage(
+        path: resizeableImage.imagePath,
+        // labelColors: [...], // defaults to https://github.com/shaqian/flutter_tflite/blob/master/lib/tflite.dart#L219
+        outputType: "bytes",
+      );
+    }
 
     Map params = {
       'resizeableImage': resizeableImage,
@@ -109,12 +128,26 @@ class _CropScreenState extends State<CropScreen> {
       'squeezeToStretchRatio': _squeezeToStretchRatio / 1000,
       'pathSendPort': pathPort.sendPort,
       'tempDir': tempDir,
+      'segmentationResult': segmentationResult,
+      // 'segmentationParamSendPort': segmentationParamPort.sendPort,
+      // 'segmentationResultPort': segmentationResultPort,
     };
 
-    Isolate isolate = await Isolate.spawn(resizeImageIsolate, params);
+    Isolate isolate;
+    isolate = await Isolate.spawn(resizeImageIsolate, params);
     // await resizeImageIsolate(params);
 
     String path;
+
+    // String imagePath = await segmentationParamPort.first;
+    //
+    // if (imagePath != null) {
+    //   segmentationResultPort.sendPort.send(await Tflite.runSegmentationOnImage(
+    //     path: imagePath,
+    //     // labelColors: [...], // defaults to https://github.com/shaqian/flutter_tflite/blob/master/lib/tflite.dart#L219
+    //     outputType: "bytes",
+    //   ));
+    // }
 
     await for (var update in progressPort) {
       setState(() {
@@ -146,7 +179,12 @@ class _CropScreenState extends State<CropScreen> {
 
     progressPort.close();
     pathPort.close();
-    isolate.kill();
+    segmentationParamPort.close();
+    segmentationResultPort.close();
+
+    if (isolate != null) {
+      isolate.kill();
+    }
     return path;
   }
 
@@ -302,86 +340,86 @@ class _CropScreenState extends State<CropScreen> {
                     // scrollDirection: Axis.horizontal,
                     // padding: const EdgeInsets.all(10.0),
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children:
-                        // [
-                        //       InkWell(
-                        //         onTap: () {
-                        //           // setState(() {
-                        //           //   selectedAspectRatio = 1;
-                        //           // });
-                        //         },
-                        //         child: AspectRatio(
-                        //           aspectRatio: 1,
-                        //           child: Card(
-                        //             shape: RoundedRectangleBorder(
-                        //                 side: new BorderSide(
-                        //                     color: 0 == selectedAspectRatio
-                        //                         ? primaryColor
-                        //                         : Colors.white,
-                        //                     width: 2.0),
-                        //                 borderRadius: BorderRadius.circular(4.0)),
-                        //             elevation: 2,
-                        //             child: Container(
-                        //               padding: const EdgeInsets.all(10),
-                        //               child: Container(
-                        //                 // margin: const EdgeInsets.all(15.0),
-                        //                 // padding: const EdgeInsets.all(3.0),
-                        //                 // decoration: BoxDecoration(
-                        //                 //     border:
-                        //                 //         Border.all(color: primaryColor, width: 2)),
-                        //                 child: Center(
-                        //                   child: Text('Custom'),
-                        //                 ),
-                        //               ),
-                        //             ),
-                        //           ),
-                        //         ),
-                        //       )
-                        //     ] +
-                        List.generate(
-                  aspectRatios.length,
-                  (index) {
-                    double aspectRatio =
-                        aspectRatios[index][0] / aspectRatios[index][1];
+                    children: List.generate(
+                          aspectRatios.length,
+                          (index) {
+                            double aspectRatio =
+                                aspectRatios[index][0] / aspectRatios[index][1];
 
-                    return InkWell(
-                      customBorder: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(5)),
-                      onTap: () {
-                        setState(() {
-                          selectedAspectRatio = aspectRatio;
-                        });
-                      },
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: Card(
-                          shape: RoundedRectangleBorder(
-                              side: new BorderSide(
-                                  color: aspectRatio == selectedAspectRatio
-                                      ? primaryColor
-                                      : Colors.white,
-                                  width: 2.0),
-                              borderRadius: BorderRadius.circular(5.0)),
-                          elevation: 2,
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            child: Container(
-                              // margin: const EdgeInsets.all(15.0),
-                              // padding: const EdgeInsets.all(3.0),
-                              // decoration: BoxDecoration(
-                              //     border:
-                              //         Border.all(color: primaryColor, width: 2)),
-                              child: Center(
-                                child: Text(
-                                    '${aspectRatios[index][0]} : ${aspectRatios[index][1]}'),
+                            return InkWell(
+                              customBorder: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(5)),
+                              onTap: () {
+                                setState(() {
+                                  selectedAspectRatio = aspectRatio;
+                                });
+                              },
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: Card(
+                                  shape: RoundedRectangleBorder(
+                                      side: new BorderSide(
+                                          color:
+                                              aspectRatio == selectedAspectRatio
+                                                  ? primaryColor
+                                                  : Colors.white,
+                                          width: 2.0),
+                                      borderRadius: BorderRadius.circular(5.0)),
+                                  elevation: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    child: Container(
+                                      // margin: const EdgeInsets.all(15.0),
+                                      // padding: const EdgeInsets.all(3.0),
+                                      // decoration: BoxDecoration(
+                                      //     border:
+                                      //         Border.all(color: primaryColor, width: 2)),
+                                      child: Center(
+                                        child: Text(
+                                            '${aspectRatios[index][0]} : ${aspectRatios[index][1]}'),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ) +
+                        [
+                          InkWell(
+                            onTap: () {
+                              // setState(() {
+                              //   selectedAspectRatio = 1;
+                              // });
+                            },
+                            child: AspectRatio(
+                              aspectRatio: 1,
+                              child: Card(
+                                shape: RoundedRectangleBorder(
+                                    side: new BorderSide(
+                                        color: 0 == selectedAspectRatio
+                                            ? primaryColor
+                                            : Colors.white,
+                                        width: 2.0),
+                                    borderRadius: BorderRadius.circular(4.0)),
+                                elevation: 2,
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  child: Container(
+                                    // margin: const EdgeInsets.all(15.0),
+                                    // padding: const EdgeInsets.all(3.0),
+                                    // decoration: BoxDecoration(
+                                    //     border:
+                                    //         Border.all(color: primaryColor, width: 2)),
+                                    child: Center(
+                                      child: Text('Custom'),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                )
+                          )
+                        ]
                     // [
                     //   // drawRect(),
                     //   AspectRatio(

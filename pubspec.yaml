@@ -35,6 +35,7 @@ dependencies:
   collection:
   equatable:
   quiver:
+  flutter_exif_rotation:
   # vector_math:
   tip_dialog:
   path_provider:
@@ -44,7 +45,8 @@ dependencies:
   tflite:
   uuid:
   bitmap:
-#  smart_select:
+  image_size_getter:
+  #  smart_select:
   material_design_icons_flutter:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_app_new/main_bottom_sheet.dart';
 import 'package:flutter_app_new/screens/cropping_screen.dart';
+import 'package:flutter_exif_rotation/flutter_exif_rotation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -67,9 +68,12 @@ class HomePage extends StatelessWidget {
 
     // originalImageFile = File(pickedImageFile.path);
 
-    return File(pickedImageFile.path);
+    // return File(pickedImageFile.path);
 
-    await fixExifRotation(pickedImageFile.path);
+    // await FlutterExifRotation.rotateImage(path: image.path);
+
+
+    return await FlutterExifRotation.rotateImage(path: pickedImageFile.path);
 
     // setState(() {
     //   originalImageFile = File(pickedImageFile.path);

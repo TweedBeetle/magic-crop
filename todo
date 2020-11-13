@@ -1,5 +1,3 @@
 fix aspect ratio row
-add screensaver ratio
 add custom ratio dialog
-fix image rotation bug
 enable being detection (do in main thread though isolate)

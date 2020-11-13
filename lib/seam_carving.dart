@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'dart:ui';
 import "dart:async";
 import "dart:isolate";
+import 'package:image_size_getter/image_size_getter.dart';
+import 'package:image_size_getter/file_input.dart';
 
 // import 'package:flutter/cupertino.dart';
 import 'package:flutter_app_new/video_creation.dart';
@@ -106,6 +108,12 @@ class ResizeableImage {
   String currentProgressImagePath;
 
   SendPort progressSendPort;
+  SendPort segmentationParamSendPort;
+  ReceivePort segmentationResultPort;
+
+  bool wrongRotation;
+
+  Uint8List segmentationResult;
 
   ResizeableImage(
     File imageFile, {
@@ -115,14 +123,32 @@ class ResizeableImage {
     this.video: false,
     this.numRecordedSteps: 75,
   }) {
+    // imageFile.
+
+    // imageLib.Image.
+    // imageLib.Image.fromBytes(width, height, bytes)
+
     imagePath = imageFile.path;
+
+
     image = imageLib.decodeImage(imageFile.readAsBytesSync());
+
+    // var actualDimensions = ImageSizeGetter.getSize(FileInput(imageFile));
+    // wrongRotation = actualDimensions.height != image.height ||
+    //     actualDimensions.width != image.width;
+    // width = actualDimensions.width;
+    // height = actualDimensions.height;
+    // originalSize = Size2D(actualDimensions.height, actualDimensions.width);
+
     width = image.width;
     height = image.height;
     originalSize = image.size();
+
+    // originalSize = image.size();
+    // print('original size is $originalSize');
   }
 
-  Future<void> init(Directory tempDir) async {
+  Future<void> init(Directory tempDir, Uint8List segmentationResult) async {
     if (initialized) {
       return;
     }
@@ -134,6 +160,11 @@ class ResizeableImage {
     Stopwatch stopwatch = new Stopwatch()..start();
 
     Matrix2D<Uint32List> imageMatrix = Matrix2D.fromImage(image);
+
+    // if (wrongRotation) {
+    //   imageMatrix = imageMatrix.rotated(-1);
+    // }
+
     assert(imageMatrix.length == width * height);
 
     if (debug) {
@@ -148,8 +179,21 @@ class ResizeableImage {
 
     Matrix2D<Uint8List> energyMatrix = forwardEnergy(image);
 
+    // if (wrongRotation) {
+    //   energyMatrix = energyMatrix.rotated(-1);
+    // }
+
+    if (debug) {
+      saveEnergyMatrixImageToGallery(
+          energyMatrix, tempDir.path + '/energy1.png');
+    }
+
+    this.segmentationResult = segmentationResult;
+
     if (beingProtection) {
       await updateEnergyMatrixWithBeingDetection_(energyMatrix);
+    } else {
+      segmentationParamSendPort.send(null);
     }
 
     var vals = minEnergy(energyMatrix);
@@ -169,13 +213,17 @@ class ResizeableImage {
   ) async {
     assert(imagePath != null);
 
-    var result = await Tflite.runSegmentationOnImage(
-      path: imagePath,
-      // labelColors: [...], // defaults to https://github.com/shaqian/flutter_tflite/blob/master/lib/tflite.dart#L219
-      outputType: "bytes",
-    );
+    // var result = await Tflite.runSegmentationOnImage(
+    //   path: imagePath,
+    //   // labelColors: [...], // defaults to https://github.com/shaqian/flutter_tflite/blob/master/lib/tflite.dart#L219
+    //   outputType: "bytes",
+    // );
 
-    String segmentationPath = tempDir.path + '/segmentation.png';
+    // segmentationParamSendPort.send(imagePath);
+    // var result = await segmentationResultPort.first;
+    // String segmentationPath = tempDir.path + '/segmentation.png';
+
+    var result = segmentationResult;
 
     // saveImageFromData(
     //   257,
@@ -192,15 +240,17 @@ class ResizeableImage {
     // imageLib.Image segmentationImage =
     //     imageLib.decodeImage(await segmentationFile.readAsBytes());
 
+    print('');
+
     imageLib.Image segmentationImage = imageLib.Image.fromBytes(
       257,
       257,
       Uint8List.fromList(result).buffer.asUint32List(),
     );
 
-    if (debug) {
-      segmentationImage.saveInGallery(segmentationPath);
-    }
+    // if (debug) {
+    //   segmentationImage.saveInGallery(segmentationPath);
+    // }
 
     imageLib.Image resizedSegmentationImage = imageLib.copyResize(
       segmentationImage,
@@ -329,8 +379,6 @@ class ResizeableImage {
     var vars = await _atSmallerSize(smallerSize);
     Matrix2D<Uint32List> imageMatrix = vars[0];
     Matrix2D<Uint8List> energyMatrix = vars[1];
-
-    // Matrix2D<Uint32List> imageMatrix = await _atSmallerSize(smallerSize);
 
     if (biggerSize != smallerSize) {
       imageMatrix = await _atBiggerSize(imageMatrix, energyMatrix, biggerSize);
@@ -496,7 +544,7 @@ class ResizeableImage {
       //     imageBrightnessMatrix, tempDir.path + '/brightness post.png');
 
       saveEnergyMatrixImageToGallery(
-          energyMatrix, tempDir.path + '/energy post.png');
+          energyMatrix, tempDir.path + '/energy after exp.png');
     }
 
     debugPrint('Seam expansion completed in ${stopwatch.elapsed}');
