@@ -150,7 +150,7 @@ class Review extends StatelessWidget {
         children: [
           Image.asset("assets/images/youtube.png", height: 30, color: primaryColor,),
           SizedBox(width: 10,),
-          Expanded(child: Text("Watch a video to get premium for a week", maxLines: 2, style: TextStyle(
+          Expanded(child: Text("Watch a video to get premium for this session", maxLines: 2, style: TextStyle(
               fontWeight: FontWeight.bold,
               color: primaryColor
           ),))
@@ -210,7 +210,7 @@ class Review extends StatelessWidget {
        width: 100,
       padding: const EdgeInsets.symmetric(horizontal: 30),
       child: FittedBox(
-        child: RatingBar(
+        child: RatingBar.builder(
           itemSize: 20,
           initialRating: 3,
           minRating: 1,

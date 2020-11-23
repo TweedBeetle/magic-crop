@@ -1,3 +1,0 @@
-fix aspect ratio row
-add custom ratio dialog
-enable being detection (do in main thread though isolate)

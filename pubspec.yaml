@@ -25,29 +25,31 @@ dependencies:
     sdk: flutter
 
 
-  image:
-  binary:
-  photofilters:
-  image_picker:
-  exif:
-  dartx:
-  esys_flutter_share:
-  collection:
-  equatable:
-  quiver:
-  flutter_exif_rotation:
-  # vector_math:
-  tip_dialog:
-  path_provider:
-  gallery_saver:
-  permission_handler:
-  isolate:
-  tflite:
-  uuid:
-  bitmap:
-  image_size_getter:
-  #  smart_select:
-  material_design_icons_flutter:
+  image: ^2.1.19
+  binary: ^2.0.0
+  photofilters: ^2.0.1
+  rate_my_app: ^0.7.2
+  image_picker: ^0.6.7+14
+  exif: ^1.0.3
+  dartx: ^0.5.0
+  esys_flutter_share: ^1.0.2
+  collection: ^1.14.13
+  equatable: ^1.2.5
+  quiver: ^2.1.5
+  flutter_exif_rotation: ^0.3.2
+  auto_size_text: ^2.1.0
+  firebase_remote_config: ^0.4.2
+  tip_dialog: ^3.1.0
+  firebase_admob: ^0.10.2
+  path_provider: ^1.6.24
+  gallery_saver: ^2.0.1
+  permission_handler: ^5.0.1+1
+  isolate: ^2.0.3
+  tflite: ^1.1.1
+  uuid: ^2.2.2
+  bitmap: ^0.0.6
+  image_size_getter: ^0.2.1
+  material_design_icons_flutter: ^4.0.5755
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^0.1.3

@@ -11,11 +11,11 @@ class SettingsMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 510,
+      height: 200,
       color: Colors.transparent, //could change this to Color(0xFF737373),
       //so you don't have to change MaterialApp canvasColor
       child: new Container(
-          height: 510,
+          height: 200,
           decoration: new BoxDecoration(
               color: Colors.white,
               borderRadius: new BorderRadius.only(
@@ -48,7 +48,7 @@ class SettingsMenu extends StatelessWidget {
                     children: [
                       InkWell(
                         onTap: () {
-                          showDialog(context: context, child: PremiumAccount());
+                          // showDialog(context: context, child: PremiumDialogue());
                         },
                         child: buildField(
                             leading: FittedBox(
@@ -74,65 +74,65 @@ class SettingsMenu extends StatelessWidget {
                         endIndent: 20,
                         thickness: 1.5,
                       ),
-                      InkWell(
-                        onTap: () {
-                          showDialog(context: context, child: ReferalCode());
-                        },
-                        child: buildField(
-                            leading: FittedBox(
-                              child: Container(
-                                  height: 20,
-                                  width: 20,
-                                  child: Image.asset(
-                                    "assets/images/group.png",
-                                  )),
-                            ),
-                            title: "Enter referral code",
-                            trailing: Icon(Icons.arrow_forward_ios_rounded)),
-                      ),
-                      Divider(
-                        indent: 20,
-                        endIndent: 20,
-                        thickness: 1.5,
-                      ),
-                      InkWell(
-                        onTap: () {
-                          showDialog(context: context, child: Review());
-                        },
-                        child: buildField(
-                            leading: FittedBox(
-                              child: Container(
-                                  height: 20,
-                                  width: 20,
-                                  child: Image.asset(
-                                    "assets/images/send.png",
-                                  )),
-                            ),
-                            title: "Share with your friend or free premium"),
-                      ),
-                      Divider(
-                        indent: 20,
-                        endIndent: 20,
-                        thickness: 1.5,
-                      ),
-                      buildField(
-                          leading: FittedBox(
-                            child: Container(
-                                height: 20,
-                                width: 20,
-                                child: Icon(
-                                  Icons.notifications_none,
-                                  color: Colors.black,
-                                  size: 20,
-                                )),
-                          ),
-                          title: "Notifications",
-                          trailing: buildSwitch()),
-                      Divider(
-                        indent: 20,
-                        endIndent: 20,
-                        thickness: 1.5,
-                      ),
+                      // InkWell(
+                      //   onTap: () {
+                      //     showDialog(context: context, child: ReferalCode());
+                      //   },
+                      //   child: buildField(
+                      //       leading: FittedBox(
+                      //         child: Container(
+                      //             height: 20,
+                      //             width: 20,
+                      //             child: Image.asset(
+                      //               "assets/images/group.png",
+                      //             )),
+                      //       ),
+                      //       title: "Enter referral code",
+                      //       trailing: Icon(Icons.arrow_forward_ios_rounded)),
+                      // ),
+                      // Divider(
+                      //   indent: 20,
+                      //   endIndent: 20,
+                      //   thickness: 1.5,
+                      // ),
+                      // InkWell(
+                      //   onTap: () {
+                      //     showDialog(context: context, child: Review());
+                      //   },
+                      //   child: buildField(
+                      //       leading: FittedBox(
+                      //         child: Container(
+                      //             height: 20,
+                      //             width: 20,
+                      //             child: Image.asset(
+                      //               "assets/images/send.png",
+                      //             )),
+                      //       ),
+                      //       title: "Share with your friend or free premium"),
+                      // ),
+                      // Divider(
+                      //   indent: 20,
+                      //   endIndent: 20,
+                      //   thickness: 1.5,
+                      // ),
+                      // buildField(
+                      //     leading: FittedBox(
+                      //       child: Container(
+                      //           height: 20,
+                      //           width: 20,
+                      //           child: Icon(
+                      //             Icons.notifications_none,
+                      //             color: Colors.black,
+                      //             size: 20,
+                      //           )),
+                      //     ),
+                      //     title: "Notifications",
+                      //     trailing: buildSwitch()),
+                      // Divider(
+                      //   indent: 20,
+                      //   endIndent: 20,
+                      //   thickness: 1.5,
+                      // ),
                       buildField(
                           leading: FittedBox(
                             child: Container(
@@ -144,28 +144,28 @@ class SettingsMenu extends StatelessWidget {
                           ),
                           title: "Dark Mode",
                           trailing: buildSwitch()),
-                      Card(
-                        elevation: 5,
-                        margin: const EdgeInsets.all(20),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        child: Column(
-                          children: [
-                            SizedBox(
-                              height: 10,
-                            ),
-                            Text(
-                              "Rate Us",
-                              style:
-                                  TextStyle(color: primaryColor, fontSize: 16),
-                            ),
-                            buildRating(),
-                            SizedBox(
-                              height: 10,
-                            )
-                          ],
-                        ),
-                      )
+                      // Card(
+                      //   elevation: 5,
+                      //   margin: const EdgeInsets.all(20),
+                      //   shape: RoundedRectangleBorder(
+                      //       borderRadius: BorderRadius.circular(10)),
+                      //   child: Column(
+                      //     children: [
+                      //       SizedBox(
+                      //         height: 10,
+                      //       ),
+                      //       Text(
+                      //         "Rate Us",
+                      //         style:
+                      //             TextStyle(color: primaryColor, fontSize: 16),
+                      //       ),
+                      //       // buildRating(),
+                      //       SizedBox(
+                      //         height: 10,
+                      //       )
+                      //     ],
+                      //   ),
+                      // )
                     ],
                   ),
                 ),
@@ -186,8 +186,8 @@ class SettingsMenu extends StatelessWidget {
   }
 
   RatingBar buildRating() {
-    return RatingBar(
-      initialRating: 3,
+    return RatingBar.builder(
+      initialRating: 4,
       minRating: 1,
       direction: Axis.horizontal,
       allowHalfRating: true,

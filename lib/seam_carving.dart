@@ -88,7 +88,7 @@ class ResizeableImage {
   bool initialized = false;
   bool beingProtection = false;
 
-  String imagePath;
+  String originalImagePath;
 
   imageLib.Image image;
   Directory tempDir;
@@ -108,12 +108,16 @@ class ResizeableImage {
   String currentProgressImagePath;
 
   SendPort progressSendPort;
-  SendPort segmentationParamSendPort;
-  ReceivePort segmentationResultPort;
+  ReceivePort cancelPort;
 
   bool wrongRotation;
 
   Uint8List segmentationResult;
+
+  double videoFps;
+  double videoDuration;
+
+  bool canceled = false;
 
   ResizeableImage(
     File imageFile, {
@@ -121,15 +125,24 @@ class ResizeableImage {
     this.speedup: 1,
     this.debug: false,
     this.video: false,
-    this.numRecordedSteps: 75,
+    this.videoFps: 30,
+    this.videoDuration: 3,
+    // this.numRecordedSteps: 75,
   }) {
+
+    if (video) {
+      numRecordedSteps = (videoFps * videoDuration).round();
+      print('$numRecordedSteps numRecordedSteps');
+    } else {
+      numRecordedSteps = 75;
+    }
+
     // imageFile.
 
     // imageLib.Image.
     // imageLib.Image.fromBytes(width, height, bytes)
 
-    imagePath = imageFile.path;
-
+    originalImagePath = imageFile.path;
 
     image = imageLib.decodeImage(imageFile.readAsBytesSync());
 
@@ -192,8 +205,6 @@ class ResizeableImage {
 
     if (beingProtection) {
       await updateEnergyMatrixWithBeingDetection_(energyMatrix);
-    } else {
-      segmentationParamSendPort.send(null);
     }
 
     var vals = minEnergy(energyMatrix);
@@ -211,7 +222,7 @@ class ResizeableImage {
   Future updateEnergyMatrixWithBeingDetection_(
     Matrix2D<Uint8List> energyMatrix,
   ) async {
-    assert(imagePath != null);
+    assert(originalImagePath != null);
 
     // var result = await Tflite.runSegmentationOnImage(
     //   path: imagePath,
@@ -345,6 +356,10 @@ class ResizeableImage {
     //   await init();
     // }
 
+    cancelPort.listen((message) {
+      print('cancellation noted in iolate');
+      canceled = true;});
+
     Stopwatch stopwatch = new Stopwatch()..start();
 
     Size2D deltaSize = size - originalSize;
@@ -355,6 +370,13 @@ class ResizeableImage {
     currentProgressImagePath = null;
 
     print("total seams to be altered: $numSeamsToBeAltered");
+
+    if (numSeamsToBeAltered == 0) {
+      if (progressSendPort != null) {
+        progressSendPort.send(false);
+      }
+      return originalImagePath;
+    }
 
     Size2D smallerSize = Size2D(
       originalSize.height + min(deltaSize.height, 0),
@@ -380,8 +402,16 @@ class ResizeableImage {
     Matrix2D<Uint32List> imageMatrix = vars[0];
     Matrix2D<Uint8List> energyMatrix = vars[1];
 
+    if (canceled) {
+      return null;
+    }
+
     if (biggerSize != smallerSize) {
       imageMatrix = await _atBiggerSize(imageMatrix, energyMatrix, biggerSize);
+    }
+
+    if (canceled) {
+      return null;
     }
 
     var resizedImagePath = tempDir.path + '/${uuid.v1()}.png';
@@ -396,6 +426,10 @@ class ResizeableImage {
     if (video) {
       await createVideo();
     }
+
+    updateProgress(imageMatrix, deltaAxis.x);
+
+    // print(numSeamsAltered / numSeamsToBeAltered);
 
     // File(tempDir.path + '/progress$progressInd.png').deleteSync();
 
@@ -484,6 +518,11 @@ class ResizeableImage {
         lastSeams = [];
 
         for (int _ = 0; _ < numSeams; _++) {
+
+          if (canceled) {
+            return null;
+          }
+
           List<List<int>> seam = getMinEnergyVerticalSeam(
             directionMatrix,
             minEnergyMatrix,
@@ -499,7 +538,7 @@ class ResizeableImage {
           //     (energyMatrix.seamsMean(seams) + energyMatrix.seamsMax(seams)) ~/
           //         2;
           // int penalty = 255;
-          int penalty = 10;
+          int penalty = 7;
           // print(penalty);
 
           penalty = max(penalty, 1);
@@ -638,6 +677,11 @@ class ResizeableImage {
         lastSeams = [];
 
         for (int _ = 0; _ < numCarvings; _++) {
+
+          if (canceled) {
+            return [null, null];
+          }
+
           // @todo: see if using seams (plural) increses speed
           seam = getMinEnergyVerticalSeam(
             directionMatrix,
@@ -697,6 +741,7 @@ class ResizeableImage {
 
   void saveProgress(Matrix2D<Uint32List> _imageMatrix, deltaAxis axis) {
     int delta = numSeamsToBeAltered ~/ numRecordedSteps;
+    delta = max(delta, 1);
 
     if (numSeamsAltered == 0 ||
         numSeamsAltered == numSeamsToBeAltered ||
@@ -730,11 +775,15 @@ class ResizeableImage {
 
       // print(currentProgressImagePath);
 
-      // saveImageMatrix(
-      //   imageMatrix,
-      //   currentProgressImagePath,
-      //   saveToGallery: false,
-      // );
+      if (video) {
+        saveImageMatrix(
+          axis == deltaAxis.y
+              ? _imageMatrix.rotated(-1)
+              : _imageMatrix,
+          currentProgressImagePath,
+          saveToGallery: false,
+        );
+      }
 
       progressInd++;
 
@@ -745,13 +794,19 @@ class ResizeableImage {
     }
   }
 
-  void updateProgress(imageMatrix, axis, {int n = 1}) {
-    numSeamsAltered += n;
+  void updateProgress(imageMatrix, axis) async {
+
+    // print('numSeamsAltered $numSeamsAltered');
+    // if (! (await cancelPort.isEmpty)) {
+    //   canceled = true;
+    // }
+
+    numSeamsAltered += 1;
     saveProgress(imageMatrix, axis);
 
     if (progressSendPort != null) {
       // print('sending');
-      double progress = numSeamsAltered / numSeamsToBeAltered;
+      double progress = numSeamsAltered / numSeamsToBeAltered ;
 
       // decodeImageFromPixels(
       //     imageMatrix.data.buffer.asUint8List(0, imageMatrix.data.length * 4),
@@ -789,7 +844,7 @@ class ResizeableImage {
     // currentProgressImagePath
   }
 
-  Future<void> createVideo({int duration: 2}) async {
+  Future<void> createVideo() async {
     // var listSync = Directory(tempDir.path).listSync();
     // print(listSync);
     // return;
@@ -801,7 +856,7 @@ class ResizeableImage {
       'progress',
       '.png',
       tempDir.path + '/progressVideo.mp4',
-      fps: numRecordedSteps / duration,
+      fps: videoFps,
     );
 
     debugPrint('video created in ${stopwatch.elapsed}');

@@ -1,0 +1,41 @@
+{
+  "project_info": {
+    "project_number": "1019400538592",
+    "firebase_url": "https://magic-crop-b8b2e.firebaseio.com",
+    "project_id": "magic-crop-b8b2e",
+    "storage_bucket": "magic-crop-b8b2e.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1019400538592:android:705f5f0951afae4c04c385",
+        "android_client_info": {
+          "package_name": "tech.nine_five_nine_two.magic_crop"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1019400538592-b1evr1r0t8mohspvgen5qsb78c8qs03i.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5s99VvSiVrs57A499MTIBJPCKBO-G8eg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1019400538592-b1evr1r0t8mohspvgen5qsb78c8qs03i.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      },
+      "admob_app_id": "ca-app-pub-3070348102899963~8024667394"
+    }
+  ],
+  "configuration_version": "1"
+}
