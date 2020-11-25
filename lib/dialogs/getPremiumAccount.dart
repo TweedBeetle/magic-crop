@@ -1,4 +1,5 @@
 import 'package:firebase_admob/firebase_admob.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
@@ -19,7 +20,7 @@ class PremiumDialogue extends StatefulWidget {
 class _PremiumDialogueState extends State<PremiumDialogue> {
   bool _rewardedAdReady;
 
-  _PremiumDialogueState(this._rewardedAdReady){
+  _PremiumDialogueState(this._rewardedAdReady) {
     print('_rewardedAdReady $_rewardedAdReady');
   }
 
@@ -38,7 +39,11 @@ class _PremiumDialogueState extends State<PremiumDialogue> {
               top: 15,
               right: 10,
               child: InkWell(
-                onTap: () => Navigator.of(context).pop(),
+                onTap: () {
+                  FirebaseAnalytics()
+                      .logEvent(name: 'premium_popup_close', parameters: null);
+                  Navigator.of(context).pop();
+                },
                 child: Container(
                   height: 30,
                   width: 30,
@@ -116,7 +121,11 @@ class _PremiumDialogueState extends State<PremiumDialogue> {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                     color: primaryColor,
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () {
+                      FirebaseAnalytics()
+                          .logEvent(name: 'IAP_init', parameters: null);
+                      Navigator.of(context).pop();
+                    },
                     child: Container(
                       child: Center(
                           child: Text(

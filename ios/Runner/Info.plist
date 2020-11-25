@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>GADApplicationIdentifier</key>
+    <string>ca-app-pub-3070348102899963~1788747323</string>
+
+    <key>io.flutter.embedded_views_preview</key>
+    <true/>
+
+	<key>CLIENT_ID</key>
+	<string>1019400538592-6ai36kmnvr54vhleqgt5113cal4nocfl.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.1019400538592-6ai36kmnvr54vhleqgt5113cal4nocfl</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCZigiU8dmKGG3Vyw0iVyxeMXDO-pOaX4c</string>
+	<key>GCM_SENDER_ID</key>
+	<string>1019400538592</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>tech.9592.magicCrop</string>
+	<key>PROJECT_ID</key>
+	<string>magic-crop-b8b2e</string>
+	<key>STORAGE_BUCKET</key>
+	<string>magic-crop-b8b2e.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:1019400538592:ios:aa01e7eec56b5fe204c385</string>
+	<key>DATABASE_URL</key>
+	<string>https://magic-crop-b8b2e.firebaseio.com</string>
+	<key>ADMOB_APP_ID</key>
+	<string>ca-app-pub-3070348102899963~1788747323</string>
+</dict>
+</plist>

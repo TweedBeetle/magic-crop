@@ -86,13 +86,18 @@ flutter {
 }
 
 dependencies {
+    implementation "com.google.android.gms:play-services-basement:17.5.0"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation platform('com.google.firebase:firebase-bom:26.1.0')
     implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-config'
+//    implementation 'com.google.firebase:firebase-analytics'
 }
 
 ext {
     flutterFFmpegPackage  = "full-gpl"
 }
 
+apply plugin: 'com.android.application'
 apply plugin: 'com.google.gms.google-services'
+apply plugin: 'com.google.firebase.crashlytics'

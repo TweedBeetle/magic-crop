@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:esys_flutter_share/esys_flutter_share.dart';
 import 'package:firebase_admob/firebase_admob.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_app_new/dialogs/aspectDialog.dart';
 import 'package:flutter_app_new/dialogs/getPremiumAccount.dart';
@@ -25,6 +26,7 @@ import '../ads.dart';
 import '../config.dart';
 import '../custom_icons_icons.dart';
 import '../matrix.dart';
+import '../remote_config.dart';
 import '../seam_carving.dart';
 
 List<List> aspectRatios = [
@@ -49,6 +51,11 @@ class CropScreen extends StatefulWidget {
 }
 
 Future resizeImageIsolate(Map params) async {
+  // await initRemoteConfig();
+  // await remoteConfig.fetch(expiration: const Duration(hours: 5));
+  // await remoteConfig.activateFetched();
+  // print('welcome message: ' + remoteConfig.getString('welcome'));
+
   // ReceivePort cancelPort = ReceivePort().asBroadcastStream();
   ReceivePort cancelPort = ReceivePort();
   params['resizeableImage'].progressSendPort.send(cancelPort.sendPort);
@@ -103,6 +110,8 @@ class _CropScreenState extends State<CropScreen> {
   bool everResized = false;
 
   bool oneLastThing = true;
+
+  Stopwatch cropStopwatch;
 
   _CropScreenState(BuildContext context, this.originalImageFile) {
     if (statusBarHeight == null) {
@@ -185,6 +194,8 @@ class _CropScreenState extends State<CropScreen> {
   }
 
   Future<String> resizeImage() async {
+    // testRemoteConfig();
+
     // Completer completer = new Completer<SendPort>();
 
     ReceivePort progressPort = ReceivePort();
@@ -306,6 +317,12 @@ class _CropScreenState extends State<CropScreen> {
       });
     }
 
+    FirebaseAnalytics().logEvent(name: 'crop_completion', parameters: {
+      'scale': selectedAspectRatio,
+      'squeezeToStretchRatio': _squeezeToStretchRatio / 1000,
+      'time_elapsed': cropStopwatch.elapsed,
+    });
+
     cancel = false;
     return path;
   }
@@ -357,6 +374,10 @@ class _CropScreenState extends State<CropScreen> {
                             onTap: _progress != 1
                                 ? () {}
                                 : () {
+                                    FirebaseAnalytics().logEvent(
+                                        name: 'back_arrow_press',
+                                        parameters: null);
+
                                     AdMobService.hideCropScreenAd();
                                     Navigator.of(context).pop();
                                     // Navigator.of(context).pop();
@@ -383,6 +404,12 @@ class _CropScreenState extends State<CropScreen> {
                             customBorder: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(5)),
                             onTap: () {
+                              FirebaseAnalytics().logEvent(
+                                  name: 'premium_button_press',
+                                  parameters: {
+                                    'rewarded_ad_ready': _rewardedAdReady
+                                  });
+
                               showDialog(
                                   context: context,
                                   builder: (context) =>
@@ -544,6 +571,10 @@ class _CropScreenState extends State<CropScreen> {
                                 onTap: _progress != 1
                                     ? () {}
                                     : () {
+                                        FirebaseAnalytics().logEvent(
+                                            name: 'custom_ratio_press',
+                                            parameters: null);
+
                                         showDialog(
                                             context: context,
                                             builder: (context) => AspectDialog(
@@ -554,6 +585,14 @@ class _CropScreenState extends State<CropScreen> {
                                                       selectedAspectRatio =
                                                           int.parse(width) /
                                                               int.parse(height);
+
+                                                      FirebaseAnalytics().logEvent(
+                                                          name:
+                                                              'custom_ratio_enter',
+                                                          parameters: {
+                                                            'ratio':
+                                                                selectedAspectRatio
+                                                          });
                                                     });
 
                                                     // print(selectedAspectRatio);
@@ -657,6 +696,10 @@ class _CropScreenState extends State<CropScreen> {
                   // onChangeStart: (_) {},
                   onChangeEnd: (value) {
                     // reset();
+
+                    FirebaseAnalytics().logEvent(
+                        name: 'slider_changed', parameters: {'value': value});
+
                     setState(() {
                       _squeezeToStretchRatio = value;
                       // resizeImageFuture = resizeImage();
@@ -706,6 +749,13 @@ class _CropScreenState extends State<CropScreen> {
       onTap: _progress != 1
           ? () {}
           : () {
+              cropStopwatch = Stopwatch()..start();
+
+              FirebaseAnalytics().logEvent(name: 'crop_start', parameters: {
+                'scale': selectedAspectRatio,
+                'squeezeToStretchRatio': _squeezeToStretchRatio / 1000,
+              });
+
               reset();
               setState(() {
                 _progress = null;
@@ -731,6 +781,13 @@ class _CropScreenState extends State<CropScreen> {
       customBorder:
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       onTap: () {
+        FirebaseAnalytics().logEvent(name: 'crop_cancel', parameters: {
+          'scale': selectedAspectRatio,
+          'squeezeToStretchRatio': _squeezeToStretchRatio / 1000,
+          'progress': _progress,
+          'time_elapsed': cropStopwatch.elapsed,
+        });
+
         setState(() {
           cancel = true;
         });
@@ -759,6 +816,9 @@ class _CropScreenState extends State<CropScreen> {
               onTap: _progress != 1 || !everResized
                   ? () {}
                   : () async {
+                      FirebaseAnalytics().logEvent(
+                          name: 'share_button_press', parameters: null);
+
                       if (oneLastThing) {
                         await showDialog(
                             context: context,
@@ -788,8 +848,6 @@ class _CropScreenState extends State<CropScreen> {
                     height: 50,
                     width: 50,
                     child: Icon(
-                      // Icons.share,
-                      // Icons.share,
                       MdiIcons.shareVariant,
                       color: _progress != 1 || !everResized
                           ? Colors.grey
@@ -810,6 +868,9 @@ class _CropScreenState extends State<CropScreen> {
               onTap: _progress != 1 || !everResized
                   ? () {}
                   : () async {
+                      FirebaseAnalytics().logEvent(
+                          name: 'save_button_press', parameters: null);
+
                       if (oneLastThing) {
                         await showDialog(
                             context: context,

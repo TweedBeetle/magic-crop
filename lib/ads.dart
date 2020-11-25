@@ -4,9 +4,11 @@ import 'package:firebase_admob/firebase_admob.dart';
 
 MobileAdTargetingInfo targetingInfo = MobileAdTargetingInfo(
   keywords: <String>['photo editing', 'instagram'],
-  contentUrl: 'https://flutter.io',
+  // contentUrl: 'https://flutter.io',
   childDirected: false,
-  testDevices: <String>[], // Android emulators are considered test devices
+  nonPersonalizedAds: false,
+  // testDevices: <String>['RF8M91E28RZ'], // Android emulators are considered test devices
+  testDevices: <String>['4115B874247D9B6E43A655F56BCDD243'], // Android emulators are considered test devices
 );
 
 class AdMobService {
@@ -44,11 +46,23 @@ class AdMobService {
 
   static String getRewardedVideoAdId() {
     if (Platform.isIOS) {
-      // return 'ca-app-pub-3070348102899963/3594521690';
-      return 'ca-app-pub-3940256099942544/5224354917';
+      return 'ca-app-pub-3070348102899963/3594521690';
+      // return 'ca-app-pub-3940256099942544/5224354917';
     } else if (Platform.isAndroid) {
-      // return 'ca-app-pub-3070348102899963/9390801528';
-      return 'ca-app-pub-3940256099942544/5224354917';
+      return 'ca-app-pub-3070348102899963/9390801528';
+      // return 'ca-app-pub-3940256099942544/5224354917';
+    }
+    return null;
+  }
+
+  static String getNativeAdvancedAdId() {
+    if (Platform.isIOS) {
+      return ''; // TODO
+      return 'ca-app-pub-3940256099942544/2247696110';
+    } else if (Platform.isAndroid) {
+      // return 'ca-app-pub-3070348102899963/9317831090';
+      return 'ca-app-pub-3940256099942544/2247696110';
+      // return ' 	ca-app-pub-3940256099942544/1044960115'; // video
     }
     return null;
   }
@@ -56,8 +70,11 @@ class AdMobService {
   static BannerAd cropScreenBannerAd;
 
   static BannerAd _getCropScreenBannerAd() {
-    var bannerAd =
-        BannerAd(adUnitId: _getCropScreenBannerAdId(), size: AdSize.fullBanner);
+    var bannerAd = BannerAd(
+      adUnitId: _getCropScreenBannerAdId(),
+      size: AdSize.fullBanner,
+      targetingInfo: targetingInfo,
+    );
 
     // bannerLoaded = bannerAd
 
