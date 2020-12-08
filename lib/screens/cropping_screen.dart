@@ -9,6 +9,7 @@ import 'package:flutter_app_new/dialogs/aspectDialog.dart';
 import 'package:flutter_app_new/dialogs/getPremiumAccount.dart';
 import 'package:flutter_app_new/dialogs/oneLastThing.dart';
 import 'package:rate_my_app/rate_my_app.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tflite/tflite.dart';
 import 'package:tip_dialog/tip_dialog.dart';
 import 'dart:io';
@@ -26,10 +27,11 @@ import '../ads.dart';
 import '../config.dart';
 import '../custom_icons_icons.dart';
 import '../matrix.dart';
+import '../premium.dart';
 import '../remote_config.dart';
 import '../seam_carving.dart';
 
-List<List> aspectRatios = [
+final List<List> aspectRatios = [
   [1, 1],
   [16, 9],
   // [9, 16],
@@ -109,16 +111,25 @@ class _CropScreenState extends State<CropScreen> {
 
   bool everResized = false;
 
-  bool oneLastThing = true;
+  bool oneLastThing = false;
 
   Stopwatch cropStopwatch;
+
+  double bannerHeight;
 
   _CropScreenState(BuildContext context, this.originalImageFile) {
     if (statusBarHeight == null) {
       statusBarHeight = MediaQuery.of(context).padding.top;
     }
 
-    AdMobService.showCropScreenBannerAd(statusBarHeight);
+    bannerHeight = Premium.premium ? 40 : 70;
+
+    if (!Premium.premium) {
+      AdMobService.loadCropScreenBannerAd().then((_) {
+        AdMobService.showCropScreenBannerAd(statusBarHeight);
+      });
+      // AdMobService.showCropScreenBannerAd(statusBarHeight);
+    }
 
     // print(RewardedVideoAd)
 
@@ -136,8 +147,8 @@ class _CropScreenState extends State<CropScreen> {
       debug: false,
       // debug: true,
       speedup: 1,
-      video: false,
       // video: true,
+      video: false,
     );
   }
 
@@ -162,18 +173,30 @@ class _CropScreenState extends State<CropScreen> {
         break;
       case RewardedVideoAdEvent.closed: // TODO: add firebase event
         _loadRewardedAd();
+        FirebaseAnalytics().logEvent(name: 'close_rewarded_ad');
         setState(() {
           _rewardedAdReady = false;
         });
         break;
       case RewardedVideoAdEvent.failedToLoad:
+        FirebaseAnalytics().logEvent(name: 'rewarded_ad_load_failure');
         setState(() {
           _rewardedAdReady = false;
         });
         break;
       case RewardedVideoAdEvent.rewarded:
+        FirebaseAnalytics().logEvent(name: 'rewarded_ad_reward_granted');
         _loadRewardedAd();
         // TODO
+
+        Premium.premium = true;
+        int premiumTimeout =
+            DateTime.now().millisecondsSinceEpoch + 60 * 60 * 1000;
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setInt('premiumTimeout', premiumTimeout);
+        }).then((_) {
+          print('premiumTimeout: $premiumTimeout');
+        });
 
         break;
       default:
@@ -202,6 +225,7 @@ class _CropScreenState extends State<CropScreen> {
     ReceivePort pathPort = ReceivePort();
 
     tempDir = await getTemporaryDirectory();
+
     // Stopwatch totalStopwatch = new Stopwatch()..start();
 
     resizeableImage.progressSendPort = progressPort.sendPort;
@@ -235,6 +259,7 @@ class _CropScreenState extends State<CropScreen> {
     };
 
     Isolate isolate;
+
     isolate = await Isolate.spawn(resizeImageIsolate, params);
     // await resizeImageIsolate(params);
 
@@ -320,7 +345,7 @@ class _CropScreenState extends State<CropScreen> {
     FirebaseAnalytics().logEvent(name: 'crop_completion', parameters: {
       'scale': selectedAspectRatio,
       'squeezeToStretchRatio': _squeezeToStretchRatio / 1000,
-      'time_elapsed': cropStopwatch.elapsed,
+      'time_elapsed': cropStopwatch.elapsed.inSeconds,
     });
 
     cancel = false;
@@ -333,7 +358,13 @@ class _CropScreenState extends State<CropScreen> {
 
     double statusBarHeight = MediaQuery.of(context).padding.top;
 
-    double topRowInset = statusBarHeight + 20;
+    double topRowInset;
+
+    if (Premium.premium) {
+      topRowInset = 30;
+    } else {
+      topRowInset = statusBarHeight + 20;
+    }
 
     EdgeInsets edgeInsets =
         EdgeInsets.only(left: 20, right: 20, top: topRowInset, bottom: 0);
@@ -365,7 +396,7 @@ class _CropScreenState extends State<CropScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          height: 70,
+                          height: bannerHeight,
                           alignment: Alignment.centerLeft,
                           // padding: const EdgeInsets.only(left: 20, top: 20),
                           child: InkWell(
@@ -379,6 +410,7 @@ class _CropScreenState extends State<CropScreen> {
                                         parameters: null);
 
                                     AdMobService.hideCropScreenAd();
+                                    // AdMobService.hideCropScreenAd();
                                     Navigator.of(context).pop();
                                     // Navigator.of(context).pop();
                                   },
@@ -396,38 +428,40 @@ class _CropScreenState extends State<CropScreen> {
                                 )),
                           ),
                         ),
-                        Container(
-                          height: 70,
-                          alignment: Alignment.centerRight,
-                          // padding: const EdgeInsets.only(right: 20, top: 20),
-                          child: InkWell(
-                            customBorder: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(5)),
-                            onTap: () {
-                              FirebaseAnalytics().logEvent(
-                                  name: 'premium_button_press',
-                                  parameters: {
-                                    'rewarded_ad_ready': _rewardedAdReady
-                                  });
-
-                              showDialog(
-                                  context: context,
-                                  builder: (context) =>
-                                      PremiumDialogue(_rewardedAdReady));
-                              // Navigator.of(context).pop();
-                            },
+                        Visibility(
+                            visible: !Premium.premium,
                             child: Container(
-                                padding: const EdgeInsets.all(5),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(5),
-                                  color: Color.fromRGBO(238, 238, 255, 1),
-                                ),
-                                child: Icon(
-                                  MdiIcons.crown,
-                                  color: Colors.orangeAccent,
-                                )),
-                          ),
-                        )
+                              height: bannerHeight,
+                              alignment: Alignment.centerRight,
+                              // padding: const EdgeInsets.only(right: 20, top: 20),
+                              child: InkWell(
+                                customBorder: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(5)),
+                                onTap: () {
+                                  FirebaseAnalytics().logEvent(
+                                      name: 'premium_button_press',
+                                      parameters: {
+                                        'rewarded_ad_ready': _rewardedAdReady
+                                      });
+
+                                  showDialog(
+                                      context: context,
+                                      builder: (context) =>
+                                          PremiumDialogue(_rewardedAdReady));
+                                  // Navigator.of(context).pop();
+                                },
+                                child: Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(5),
+                                      color: Color.fromRGBO(238, 238, 255, 1),
+                                    ),
+                                    child: Icon(
+                                      MdiIcons.crown,
+                                      color: specialColor,
+                                    )),
+                              ),
+                            ))
                       ],
                     )),
                 // SizedBox(
@@ -525,6 +559,21 @@ class _CropScreenState extends State<CropScreen> {
                                   onTap: _progress != 1
                                       ? () {}
                                       : () {
+                                          FirebaseAnalytics().logEvent(
+                                              name: 'aspect_ratio_select',
+                                              parameters: {
+                                                'ratio': aspectRatio
+                                              });
+
+                                          if (!Premium.premium) {
+                                            showDialog(
+                                                context: context,
+                                                builder: (context) =>
+                                                    PremiumDialogue(
+                                                        _rewardedAdReady));
+                                            return;
+                                          }
+
                                           setState(() {
                                             customRatioActive = false;
                                             selectedAspectRatio = aspectRatio;
@@ -575,30 +624,39 @@ class _CropScreenState extends State<CropScreen> {
                                             name: 'custom_ratio_press',
                                             parameters: null);
 
+                                        // if (Premium.premium) {}
+
                                         showDialog(
                                             context: context,
-                                            builder: (context) => AspectDialog(
-                                                  aspectRatioHandler:
-                                                      (width, height) {
-                                                    setState(() {
-                                                      customRatioActive = true;
-                                                      selectedAspectRatio =
-                                                          int.parse(width) /
-                                                              int.parse(height);
+                                            builder: (context) => !Premium
+                                                    .premium
+                                                ? PremiumDialogue(
+                                                    _rewardedAdReady)
+                                                : AspectDialog(
+                                                    aspectRatioHandler:
+                                                        (width, height) {
+                                                      setState(() {
+                                                        customRatioActive =
+                                                            true;
+                                                        selectedAspectRatio =
+                                                            int.parse(width) /
+                                                                int.parse(
+                                                                    height);
 
-                                                      FirebaseAnalytics().logEvent(
-                                                          name:
-                                                              'custom_ratio_enter',
-                                                          parameters: {
-                                                            'ratio':
-                                                                selectedAspectRatio
-                                                          });
-                                                    });
+                                                        FirebaseAnalytics()
+                                                            .logEvent(
+                                                                name:
+                                                                    'custom_ratio_enter',
+                                                                parameters: {
+                                                              'ratio':
+                                                                  selectedAspectRatio
+                                                            });
+                                                      });
 
-                                                    // print(selectedAspectRatio);
-                                                    // print(height);
-                                                  },
-                                                ));
+                                                      // print(selectedAspectRatio);
+                                                      // print(height);
+                                                    },
+                                                  ));
                                       },
                                 child: AspectRatio(
                                   aspectRatio: 1,
@@ -622,7 +680,8 @@ class _CropScreenState extends State<CropScreen> {
                                         //         Border.all(color: primaryColor, width: 2)),
                                         child: Center(
                                           child: AutoSizeText(
-                                            '? ‎: ?',
+                                            // '? ‎: ?',
+                                            'custom',
                                             minFontSize: 8,
                                           ),
                                         ),
@@ -826,6 +885,11 @@ class _CropScreenState extends State<CropScreen> {
                                 OneLastThingDialogue((res) => {}));
                       }
 
+                      SharedPreferences.getInstance().then((prefs) {
+                        prefs.setInt('lastShareOrSave',
+                            DateTime.now().millisecondsSinceEpoch);
+                      });
+
                       var bytes = await resizedImageFile.readAsBytes();
                       print('loaded');
 
@@ -877,6 +941,11 @@ class _CropScreenState extends State<CropScreen> {
                             builder: (context) =>
                                 OneLastThingDialogue((res) => {}));
                       }
+
+                      SharedPreferences.getInstance().then((prefs) {
+                        prefs.setInt('lastShareOrSave',
+                            DateTime.now().millisecondsSinceEpoch);
+                      });
 
                       await GallerySaver.saveImage(resizedImageFile.path);
 

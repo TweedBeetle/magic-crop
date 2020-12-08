@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 import "dart:async";
 import "dart:isolate";
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:image_size_getter/image_size_getter.dart';
 import 'package:image_size_getter/file_input.dart';
 
@@ -61,6 +62,10 @@ extension SeamCarving on imageLib.Image {
   void saveInGallery(String path) {
     save(path);
     GallerySaver.saveImage(path);
+  }
+  Future<void> saveInGalleryAsync(String path) async {
+    save(path);
+    await GallerySaver.saveImage(path);
   }
 
   void save(String path) {
@@ -126,10 +131,9 @@ class ResizeableImage {
     this.debug: false,
     this.video: false,
     this.videoFps: 30,
-    this.videoDuration: 3,
+    this.videoDuration: 4,
     // this.numRecordedSteps: 75,
   }) {
-
     if (video) {
       numRecordedSteps = (videoFps * videoDuration).round();
       print('$numRecordedSteps numRecordedSteps');
@@ -157,6 +161,8 @@ class ResizeableImage {
     height = image.height;
     originalSize = image.size();
 
+    print('originalSize: $originalSize');
+
     // originalSize = image.size();
     // print('original size is $originalSize');
   }
@@ -171,6 +177,17 @@ class ResizeableImage {
     this.tempDir = tempDir;
 
     Stopwatch stopwatch = new Stopwatch()..start();
+
+    // if (video) {
+    tempDir.listSync().forEach(
+      (element) {
+        if (element.path.endsWith('.png') || element.path.endsWith('.mp4')) {
+          print('deleting $element');
+          element.deleteSync();
+        }
+      },
+    );
+    // }
 
     Matrix2D<Uint32List> imageMatrix = Matrix2D.fromImage(image);
 
@@ -216,6 +233,11 @@ class ResizeableImage {
     directionMatrixCache = MatrixCache(matrix: directionMatrix);
 
     debugPrint('initialized in ${stopwatch.elapsed}');
+
+
+    // FirebaseAnalytics().logEvent(name: 'resizable_image_init', parameters: {
+    //   'elapsed_time': stopwatch.elapsed.inSeconds,
+    // });
   }
 
   // ignore: non_constant_identifier_names
@@ -358,7 +380,8 @@ class ResizeableImage {
 
     cancelPort.listen((message) {
       print('cancellation noted in iolate');
-      canceled = true;});
+      canceled = true;
+    });
 
     Stopwatch stopwatch = new Stopwatch()..start();
 
@@ -423,11 +446,11 @@ class ResizeableImage {
 
     debugPrint('Size change completed in ${stopwatch.elapsed}');
 
-    if (video) {
-      await createVideo();
-    }
+    // if (video) {
+    //   await createVideo();
+    // }
 
-    updateProgress(imageMatrix, deltaAxis.x);
+    await updateProgress(imageMatrix, deltaAxis.x);
 
     // print(numSeamsAltered / numSeamsToBeAltered);
 
@@ -518,7 +541,6 @@ class ResizeableImage {
         lastSeams = [];
 
         for (int _ = 0; _ < numSeams; _++) {
-
           if (canceled) {
             return null;
           }
@@ -548,7 +570,7 @@ class ResizeableImage {
           List<int> indicesToFill = vars[1];
           fillImageMatrixIndicesByInterpolation(imageMatrix, indicesToFill);
 
-          updateProgress(imageMatrix, axis);
+          await updateProgress(imageMatrix, axis);
 
           energyMatrix = energyMatrix.withExpandedAndInterpolatedSeams(seams);
 
@@ -677,7 +699,6 @@ class ResizeableImage {
         lastSeams = [];
 
         for (int _ = 0; _ < numCarvings; _++) {
-
           if (canceled) {
             return [null, null];
           }
@@ -699,7 +720,7 @@ class ResizeableImage {
           minEnergyMatrix = minEnergyMatrix.withCarvedSeam(seam, ordered: true);
           directionMatrix = directionMatrix.withCarvedSeam(seam, ordered: true);
 
-          updateProgress(imageMatrix, axis);
+          await updateProgress(imageMatrix, axis);
 
           lastSeams.add(seam);
           numCarved++;
@@ -739,7 +760,7 @@ class ResizeableImage {
     return [imageMatrix, energyMatrix];
   }
 
-  void saveProgress(Matrix2D<Uint32List> _imageMatrix, deltaAxis axis) {
+  Future<void> saveProgress(Matrix2D<Uint32List> _imageMatrix, deltaAxis axis) async {
     int delta = numSeamsToBeAltered ~/ numRecordedSteps;
     delta = max(delta, 1);
 
@@ -762,6 +783,7 @@ class ResizeableImage {
       // }
 
       var path = tempDir.path + '/progress$progressInd.png';
+      print(path);
 
       // var file = File(path);
       // if (file.existsSync()) {
@@ -776,13 +798,13 @@ class ResizeableImage {
       // print(currentProgressImagePath);
 
       if (video) {
-        saveImageMatrix(
-          axis == deltaAxis.y
-              ? _imageMatrix.rotated(-1)
-              : _imageMatrix,
+        await saveImageMatrixAsync(
+        // saveImageMatrix(
+          axis == deltaAxis.y ? _imageMatrix.rotated(-1) : _imageMatrix,
           currentProgressImagePath,
-          saveToGallery: false,
+          saveToGallery: true,
         );
+        // await Future.delayed(Duration(milliseconds: 100));
       }
 
       progressInd++;
@@ -794,19 +816,18 @@ class ResizeableImage {
     }
   }
 
-  void updateProgress(imageMatrix, axis) async {
-
+  Future<void> updateProgress(imageMatrix, axis) async {
     // print('numSeamsAltered $numSeamsAltered');
     // if (! (await cancelPort.isEmpty)) {
     //   canceled = true;
     // }
 
     numSeamsAltered += 1;
-    saveProgress(imageMatrix, axis);
+    await saveProgress(imageMatrix, axis);
 
     if (progressSendPort != null) {
       // print('sending');
-      double progress = numSeamsAltered / numSeamsToBeAltered ;
+      double progress = numSeamsAltered / numSeamsToBeAltered;
 
       // decodeImageFromPixels(
       //     imageMatrix.data.buffer.asUint8List(0, imageMatrix.data.length * 4),
@@ -855,7 +876,7 @@ class ResizeableImage {
       tempDir.path,
       'progress',
       '.png',
-      tempDir.path + '/progressVideo.mp4',
+      tempDir.path + '/progressVideo2.mp4',
       fps: videoFps,
     );
 
@@ -876,6 +897,24 @@ void saveImageMatrix(
 
   if (saveToGallery) {
     image.saveInGallery(path);
+  } else {
+    image.save(path);
+  }
+}
+
+Future<void> saveImageMatrixAsync(
+  Matrix2D<Uint32List> imageMatrix,
+  String path, {
+  saveToGallery: false,
+}) async {
+  Uint8List data =
+      imageMatrix.data.buffer.asUint8List(0, imageMatrix.data.length * 4);
+
+  imageLib.Image image =
+      imageLib.Image.fromBytes(imageMatrix.width, imageMatrix.height, data);
+
+  if (saveToGallery) {
+    await image.saveInGalleryAsync(path);
   } else {
     image.save(path);
   }

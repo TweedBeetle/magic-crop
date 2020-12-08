@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_app_new/ads.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import '../premium.dart';
 import 'file:///C:/Users/chris/AndroidStudioProjects/flutter_app_new/lib/dialogs/settings_menu.dart';
 import 'package:flutter_app_new/screens/cropping_screen.dart';
 import 'package:flutter_exif_rotation/flutter_exif_rotation.dart';
@@ -24,7 +26,6 @@ final ams = AdMobService();
 final picker = ImagePicker();
 
 class HomePage extends StatefulWidget {
-
   // NativeAdmobController nativeAdController;
   NativeAdmob nativeAd;
 
@@ -47,11 +48,8 @@ class _HomePageState extends State<HomePage> {
 
   final _nativeAdController = NativeAdmobController();
 
-
   // _HomePageState(this.nativeAdController);
   _HomePageState(this.nativeAd);
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -65,81 +63,86 @@ class _HomePageState extends State<HomePage> {
 
     print('building HomePage');
 
-    double width = MediaQuery
-        .of(context)
-        .size
-        .width;
+    double width = MediaQuery.of(context).size.width;
     var safeArea = SafeArea(
         child: Scaffold(
-          backgroundColor: backgroundColor,
-          body: Stack(
-            children: [
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 80,
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                      left: 20, right: 20, top: 30, bottom: 40),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text("Advertisement"),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(border: Border.all()),
-                          child: nativeAd,
-                          // child: NativeAdmob(
-                          //   // Your ad unit id
-                          //   adUnitID: AdMobService.getNativeAdvancedAdId(),
-                          //   loading: Center(
-                          //       child: CircularProgressIndicator(
-                          //         valueColor: AlwaysStoppedAnimation(
-                          //             primaryColor),
-                          //       )),
-                          //   numberAds: 1,
-                          //   controller: _nativeAdController,
-                          //   type: NativeAdmobType.full,
-                          // ),
+      backgroundColor: backgroundColor,
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 80,
+            child: Premium.premium
+                ? Icon(
+                    MdiIcons.crown,
+                    color: specialColor,
+                    size: 200,
+                  )
+                : Padding(
+                    padding: const EdgeInsets.only(
+                        left: 20, right: 20, top: 30, bottom: 40),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text("Advertisement"),
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(border: Border.all()),
+                            child: nativeAd,
+                            // child: NativeAdmob(
+                            //   // Your ad unit id
+                            //   adUnitID: AdMobService.getNativeAdvancedAdId(),
+                            //   loading: Center(
+                            //       child: CircularProgressIndicator(
+                            //         valueColor: AlwaysStoppedAnimation(
+                            //             primaryColor),
+                            //       )),
+                            //   numberAds: 1,
+                            //   controller: _nativeAdController,
+                            //   type: NativeAdmobType.full,
+                            // ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                left: 5,
-                child: buildFooter(width, context),
-              ),
-              // buildFooter(width, context)
-            ],
           ),
-        ));
+          Positioned(
+            right: 0,
+            bottom: 0,
+            left: 5,
+            child: buildFooter(width, context),
+          ),
+          // buildFooter(width, context)
+        ],
+      ),
+    ));
 
-    AdMobService.hideCropScreenAd();
+    // AdMobService.hideCropScreenAd();
+    AdMobService.loadCropScreenBannerAd();
 
     return RateMyAppBuilder(
       builder: (context) => safeArea,
       rateMyApp: RateMyApp(
         preferencesPrefix: 'rateMyApp_',
-        minDays: 3,
+        minDays: 5,
         minLaunches: 5,
         remindDays: 3,
-        remindLaunches: 3,
+        remindLaunches: 4,
         googlePlayIdentifier: 'tech.nine_five_nine_two.magic_crop',
         appStoreIdentifier: '', // TODO
       ),
       onInitialized: (context, rateMyApp) {
         // Called when Rate my app has been initialized.
 
+        print('rateMyApp initialized');
+
         rateMyApp.conditions.forEach((condition) {
           if (condition is DebuggableCondition) {
             print(condition.valuesAsString +
-                ' ${condition
-                    .isMet}'); // We iterate through our list of conditions and we print all debuggable ones.
+                ' ${condition.isMet}'); // We iterate through our list of conditions and we print all debuggable ones.
           } else {
             print(condition);
           }
@@ -152,15 +155,15 @@ class _HomePageState extends State<HomePage> {
           // if (true) {
           rateMyApp.showRateDialog(
             context,
-            title: 'Rate this app',
+            title: 'We\'d love some feedback!',
             // The dialog title.
-            message: 'Hey there, would you consider giving this app a review?',
+            message: 'Would you consider giving this app a review?',
             // The dialog message.
-            rateButton: 'RATE',
+            rateButton: 'review',
             // The dialog "rate" button text.
-            noButton: 'NO THANKS',
+            noButton: 'no thanks',
             // The dialog "no" button text.
-            laterButton: 'MAYBE LATER',
+            laterButton: 'perhaps later',
             // The dialog "later" button text.
             listener: (button) {
               // The button click listener (useful if you want to cancel the click event).
@@ -178,13 +181,12 @@ class _HomePageState extends State<HomePage> {
 
               return true; // Return false if you want to cancel the click event.
             },
-            ignoreNativeDialog: true,
+            ignoreNativeDialog: false,
             // Set to false if you want to show the Apple's native app rating dialog on iOS or Google's native app rating dialog (depends on the current Platform).
-            dialogStyle: DialogStyle(),
+            // dialogStyle: DialogStyle(),
             // Custom dialog styles.
-            onDismissed: () =>
-                rateMyApp.callEvent(RateMyAppEventType
-                    .laterButtonPressed), // Called when the user dismissed the dialog (either by taping outside or by pressing the "back" button).
+            onDismissed: () => rateMyApp.callEvent(RateMyAppEventType
+                .laterButtonPressed), // Called when the user dismissed the dialog (either by taping outside or by pressing the "back" button).
             // contentBuilder: (context, defaultContent) => content, // This one allows you to change the default dialog content.
             // actionsBuilder: (context) => [], // This one allows you to use your own buttons.
           );
@@ -206,28 +208,17 @@ class _HomePageState extends State<HomePage> {
         isAsset: true,
         // defaults to true, set to false to load resources outside assets
         useGpuDelegate:
-        false // defaults to false, set to true to use GPU delegate
-    );
+            false // defaults to false, set to true to use GPU delegate
+        );
 
     tempDir = await getTemporaryDirectory();
 
     assert(res == 'success');
-    FirebaseAdMob.instance.initialize(appId: AdMobService.getAdMobAppId());
-
     // @todo: handle failure ^
   }
 
   Future<File> pickImage(context) async {
     await Permission.storage.request();
-
-    // progressImageFile = null;
-    // originalImageFile = null;
-    // resizeImageFuture = null;
-    // progressImage = null;
-
-    // if (tempDir == null) {
-    //   tempDir = await getTemporaryDirectory();
-    // }
 
     if (!initialised) {
       init();
@@ -235,52 +226,19 @@ class _HomePageState extends State<HomePage> {
 
     PickedFile pickedImageFile = await picker.getImage(
       source: ImageSource.gallery,
-      // maxHeight: 1920,
-      // maxWidth: 1920,
+      maxHeight: 1920,
+      maxWidth: 1920,
+      // maxHeight: 1580,
+      // maxWidth: 1580,
       // maxHeight: 1280,
       // maxWidth: 1280,
       // maxHeight: 1080,
       // maxWidth: 1080,
-      maxHeight: 720,
-      maxWidth: 720,
+      // maxHeight: 720,
+      // maxWidth: 720,
     );
 
-    // pickedImageFile.readAsBytes()
-    // imageLib.Image a = imageLib.decodeImage(await pickedImageFile.readAsBytes());
-
-    // originalImageFile = File(pickedImageFile.path);
-
-    // return File(pickedImageFile.path);
-
-    // await FlutterExifRotation.rotateImage(path: image.path);
-
     return await FlutterExifRotation.rotateImage(path: pickedImageFile.path);
-
-    // setState(() {
-    //   originalImageFile = File(pickedImageFile.path);
-    // });
-    //
-    //
-    // resizeableImage = ResizeableImage(
-    //   originalImageFile,
-    //   beingProtection: false,
-    //   // beingProtection: true,
-    //   debug: false,
-    //   // debug: true,
-    //   speedup: 1,
-    //   video: false,
-    //   // video: true,
-    // );
-
-    // var storagePermission = await Permission.storage.status;
-    // print(storagePermission);
-//
-//    final PermissionHandler _permissionHandler = PermissionHandler();
-//    var result = await _permissionHandler.requestPermissions([PermissionGroup.contacts]);
-
-//    if (!(await Permission.storage.request().isGranted)) {
-//       @todo
-//    }
   }
 
   Container buildFooter(double width, BuildContext context) {
@@ -289,20 +247,51 @@ class _HomePageState extends State<HomePage> {
       padding: const EdgeInsets.all(10),
       child: IntrinsicWidth(
           child: Row(
-            // crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              InkWell(
-                onTap: () {
-                  FirebaseAnalytics()
-                      .logEvent(name: 'open_settings', parameters: null);
+        // crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          InkWell(
+            onTap: () {
+              FirebaseAnalytics()
+                  .logEvent(name: 'open_settings', parameters: null);
 
-                  showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (builder) {
-                        return SettingsMenu();
-                      });
+              showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (builder) {
+                    return SettingsMenu();
+                  });
+            },
+            child: Card(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              elevation: 5,
+              shadowColor: primaryColor,
+              color: primaryColor,
+              child: IntrinsicHeight(
+                  child: Container(
+                      padding: const EdgeInsets.all(10),
+                      height: 55,
+                      width: 55,
+                      child: Image.asset(
+                        "assets/images/menu-align-left.png",
+                        color: Colors.white,
+                      ))),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              child: InkWell(
+                onTap: () async {
+                  File imageFile = await pickImage(context);
+
+                  if (imageFile != null) {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) => CropScreen(context, imageFile),
+                      settings: RouteSettings(name: 'CropScreen'),
+                    ));
+                  }
                 },
                 child: Card(
                   shape: RoundedRectangleBorder(
@@ -310,83 +299,50 @@ class _HomePageState extends State<HomePage> {
                   elevation: 5,
                   shadowColor: primaryColor,
                   color: primaryColor,
-                  child: IntrinsicHeight(
-                      child: Container(
-                          padding: const EdgeInsets.all(10),
-                          height: 55,
-                          width: 55,
-                          child: Image.asset(
-                            "assets/images/menu-align-left.png",
+                  child: Container(
+                      height: 55,
+                      padding: const EdgeInsets.all(15),
+                      child: IntrinsicHeight(
+                          child: Container(
+                              // decoration: BoxDecoration(
+                              //     border: Border.all(color: Colors.black)),
+                              child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        // crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.add_photo_alternate,
                             color: Colors.white,
-                          ))),
+                          ),
+                          // SizedBox(
+                          //   width: 5,
+                          // ),
+                          Container(
+                              // decoration: BoxDecoration(
+                              //     border:
+                              //         Border.all(color: Colors.black)),
+                              // mar
+                              // padding: const EdgeInsets.all(0),
+                              child: Text(
+                            //@todo: make text larger
+                            "Choose Image",
+                            style: TextStyle(color: Colors.white),
+                          )),
+                          // SizedBox(
+                          //   width: 5,
+                          // ),
+                          Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                          )
+                        ],
+                      )))),
                 ),
               ),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  child: InkWell(
-                    onTap: () async {
-                      File imageFile = await pickImage(context);
-
-                      if (imageFile != null) {
-                        Navigator.of(context).push(MaterialPageRoute(
-                          builder: (context) => CropScreen(context, imageFile),
-                          settings: RouteSettings(name: 'CropScreen'),
-                        ));
-                      }
-                    },
-                    child: Card(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      elevation: 5,
-                      shadowColor: primaryColor,
-                      color: primaryColor,
-                      child: Container(
-                          height: 55,
-                          padding: const EdgeInsets.all(15),
-                          child: IntrinsicHeight(
-                              child: Container(
-                                // decoration: BoxDecoration(
-                                //     border: Border.all(color: Colors.black)),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment
-                                        .spaceBetween,
-                                    // crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.add_photo_alternate,
-                                        color: Colors.white,
-                                      ),
-                                      // SizedBox(
-                                      //   width: 5,
-                                      // ),
-                                      Container(
-                                        // decoration: BoxDecoration(
-                                        //     border:
-                                        //         Border.all(color: Colors.black)),
-                                        // mar
-                                        // padding: const EdgeInsets.all(0),
-                                          child: Text(
-                                            //@todo: make text larger
-                                            "Choose Image",
-                                            style: TextStyle(
-                                                color: Colors.white),
-                                          )),
-                                      // SizedBox(
-                                      //   width: 5,
-                                      // ),
-                                      Icon(
-                                        Icons.arrow_forward,
-                                        color: Colors.white,
-                                      )
-                                    ],
-                                  )))),
-                    ),
-                  ),
-                ),
-              )
-            ],
-          )),
+            ),
+          )
+        ],
+      )),
     );
   }
 }

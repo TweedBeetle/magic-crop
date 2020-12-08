@@ -8,7 +8,11 @@ MobileAdTargetingInfo targetingInfo = MobileAdTargetingInfo(
   childDirected: false,
   nonPersonalizedAds: false,
   // testDevices: <String>['RF8M91E28RZ'], // Android emulators are considered test devices
-  testDevices: <String>['4115B874247D9B6E43A655F56BCDD243'], // Android emulators are considered test devices
+  testDevices: <String>[
+    '4115B874247D9B6E43A655F56BCDD243',
+    'fbc93fae-84d7-4a0d-a662-ce0288d78104',
+    'RF8M91E28RZ',
+  ], // Android emulators are considered test devices
 );
 
 class AdMobService {
@@ -21,9 +25,8 @@ class AdMobService {
   static bool bannerLoaded;
   static bool bannerShown;
 
-  static bool bannerInitialising;
+  static int lastBannerLoad = 0;
 
-  static bool bannerShouldBeShowing;
 
   static String getAdMobAppId() {
     if (Platform.isIOS) {
@@ -37,9 +40,10 @@ class AdMobService {
   static String _getCropScreenBannerAdId() {
     if (Platform.isIOS) {
       return 'ca-app-pub-3070348102899963/3975410041';
+      return 'ca-app-pub-3940256099942544/6300978111'; // test
     } else if (Platform.isAndroid) {
-      return 'ca-app-pub-3940256099942544/6300978111';
-      // return 'ca-app-pub-3070348102899963/6659614832';
+      return 'ca-app-pub-3070348102899963/6659614832';
+      // return 'ca-app-pub-3940256099942544/6300978111'; // test
     }
     return null;
   }
@@ -47,21 +51,21 @@ class AdMobService {
   static String getRewardedVideoAdId() {
     if (Platform.isIOS) {
       return 'ca-app-pub-3070348102899963/3594521690';
-      // return 'ca-app-pub-3940256099942544/5224354917';
+      // return 'ca-app-pub-3940256099942544/5224354917'; // test
     } else if (Platform.isAndroid) {
       return 'ca-app-pub-3070348102899963/9390801528';
-      // return 'ca-app-pub-3940256099942544/5224354917';
+      // return 'ca-app-pub-3940256099942544/5224354917'; // test
     }
     return null;
   }
 
   static String getNativeAdvancedAdId() {
     if (Platform.isIOS) {
-      return ''; // TODO
-      return 'ca-app-pub-3940256099942544/2247696110';
+      return 'ca-app-pub-3070348102899963/6696875918';
+      return 'ca-app-pub-3940256099942544/2247696110';  // test
     } else if (Platform.isAndroid) {
-      // return 'ca-app-pub-3070348102899963/9317831090';
-      return 'ca-app-pub-3940256099942544/2247696110';
+      return 'ca-app-pub-3070348102899963/9317831090';
+      // return 'ca-app-pub-3940256099942544/2247696110';  // test
       // return ' 	ca-app-pub-3940256099942544/1044960115'; // video
     }
     return null;
@@ -85,23 +89,45 @@ class AdMobService {
   // static void loadAds() {
   // }
 
-  static void showCropScreenBannerAd(double anchorOffset) async {
-    bannerShouldBeShowing = true;
+  static Future<void> loadCropScreenBannerAd() async {
+    //
+    // if (cropScreenBannerAd == null)
+    //   cropScreenBannerAd = _getCropScreenBannerAd();
+    //
+    // await cropScreenBannerAd.load().then((value) => {print('banner ad loaded')});
+
+    print('trying to show banner ad');
 
     if (cropScreenBannerAd == null)
       cropScreenBannerAd = _getCropScreenBannerAd();
 
-    bannerInitialising = true;
+      if ((DateTime.now().millisecondsSinceEpoch - lastBannerLoad).abs() < 60 * 1000) {
+        return;
+      }
 
-    await cropScreenBannerAd.load();
+      await cropScreenBannerAd.load().then((value) => {print('banner ad loaded')});
+      lastBannerLoad = DateTime.now().millisecondsSinceEpoch;
+
+  }
+
+  static void showCropScreenBannerAd(double anchorOffset) async {
+
     // ..then((value) {
     //   bannerLoaded = true;
     // });
 
+    // if ((DateTime.now().millisecondsSinceEpoch - lastBannerLoad).abs() < 60 * 1000) {
+    //   return;
+    // }
+
+    if (cropScreenBannerAd == null) {
+      return;
+    }
+
     await cropScreenBannerAd.show(
       anchorType: AnchorType.top,
       anchorOffset: anchorOffset,
-    );
+    ).then((value) => {print('banner ad shown')});
 
     // print('bannerShouldBeShowing: $bannerShouldBeShowing');
 
@@ -109,15 +135,6 @@ class AdMobService {
     //   hideCropScreenAd();
     // }
     // });
-
-    print('bannerShouldBeShowing: $bannerShouldBeShowing');
-
-    if (!bannerShouldBeShowing) {
-      await cropScreenBannerAd.dispose().then((value) {
-        cropScreenBannerAd = null;
-      });
-      // cropScreenBannerAd = null;
-    }
 
     // bannerInitialising = false;
 
@@ -130,7 +147,6 @@ class AdMobService {
   }
 
   static void hideCropScreenAd() async {
-    bannerShouldBeShowing = false;
     if (cropScreenBannerAd == null) return;
 
     // await bannerLoaded;

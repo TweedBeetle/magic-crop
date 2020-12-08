@@ -25,7 +25,10 @@ dependencies:
     sdk: flutter
 
 
-  flutter_native_admob: ^2.1.0+3
+#  flutter_native_admob: ^2.1.0+3
+  flutter_native_admob:
+    git:
+      url: https://github.com/TweedBeetle/flutter_native_admob
   splashscreen: ^1.3.5
   image: ^2.1.19
   binary: ^2.0.0
@@ -60,11 +63,26 @@ dependencies:
   cupertino_icons: ^0.1.3
   device_preview: ^0.4.8
   flutter_rating_bar: ^3.0.1+1
+  flutter_launcher_icons: ^0.8.1
+  shared_preferences: ^0.5.12+4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_ffmpeg:
+
+flutter_icons:
+  ios: true
+  android: true
+  image_path_ios: "assets/launcher/fpp2.png"
+  image_path_android: "assets/launcher/fpp2.png"
+#  image_path_ios: "assets/launcher/magic crop icon 900 border 80.png"
+#  image_path_android: "assets/launcher/magic crop icon 900 border 80.png"
+#  adaptive_icon_background: "assets/launcher/magic crop icon 900 background.png"
+#  adaptive_icon_foreground: "assets/launcher/magic crop icon 900 foreground border 80.png"
+
+  adaptive_icon_background: "assets/launcher/fpp2.png"
+  adaptive_icon_foreground: "assets/launcher/fpp2.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -90,6 +108,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/splash/
     - assets/models/lite-model_deeplabv3_1_metadata_2.tflite
 
 

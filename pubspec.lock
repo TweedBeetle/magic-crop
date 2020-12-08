@@ -244,6 +244,13 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "0.3.0"
+  flutter_launcher_icons:
+    dependency: "direct main"
+    description:
+      name: flutter_launcher_icons
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "0.8.1"
   flutter_localizations:
     dependency: transitive
     description: flutter
@@ -252,9 +259,11 @@ packages:
   flutter_native_admob:
     dependency: "direct main"
     description:
-      name: flutter_native_admob
-      url: "https://pub.dartlang.org"
-    source: hosted
+      path: "."
+      ref: HEAD
+      resolved-ref: "8c4ecc2fc11599f31904ce9783f02cc1f2f8fedf"
+      url: "https://github.com/TweedBeetle/flutter_native_admob"
+    source: git
     version: "2.1.0+3"
   flutter_plugin_android_lifecycle:
     dependency: transitive
@@ -519,7 +528,7 @@ packages:
     source: hosted
     version: "0.7.2"
   shared_preferences:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: shared_preferences
       url: "https://pub.dartlang.org"
@@ -691,6 +700,13 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "4.5.1"
+  yaml:
+    dependency: transitive
+    description:
+      name: yaml
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "2.2.1"
 sdks:
   dart: ">=2.10.0-110 <2.11.0"
   flutter: ">=1.13.0 <2.0.0"

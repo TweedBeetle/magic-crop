@@ -71,7 +71,7 @@ class _PremiumDialogueState extends State<PremiumDialogue> {
                         borderRadius: BorderRadius.circular(25)),
                     child: Container(
                         decoration: BoxDecoration(
-                            color: Colors.orange,
+                            color: specialColor,
                             borderRadius: BorderRadius.circular(25)),
                         child: Container(
                             margin: const EdgeInsets.all(5.0),
